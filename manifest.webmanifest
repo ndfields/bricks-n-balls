@@ -1,7 +1,7 @@
 {
   "name": "Brick N Balls",
   "short_name": "Brick N Balls",
-  "description": "A cozy brick-breaker: aim, launch a stream of balls, and clear the numbered bricks before the stack reaches the bottom.",
+  "description": "A level-based brick-breaker: aim, launch a stream of balls, grab lasers, scramblers and bombs, and clear the numbered bricks before the stack reaches the bottom.",
   "start_url": ".",
   "scope": ".",
   "display": "standalone",

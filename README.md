@@ -2,7 +2,9 @@
 
 A custom, mobile-first brick-breaker game — the "Bricks n Balls" / "Ballz" style
 where you aim, launch a stream of bouncing balls, and clear the numbered bricks
-before the stack marches down to the bottom line.
+before the stack marches down to the bottom line. It's **level-based** and gets
+tougher as you climb, with collectible **power-ups** (lasers, scramblers, bombs)
+and juicy particle/glow effects.
 
 It's a single self-contained HTML file (no build step, no dependencies, no server
 logic) designed to run great on a phone and be hosted for free on GitHub Pages.
@@ -12,11 +14,26 @@ logic) designed to run great on a phone and be hosted for free on GitHub Pages.
 - **Drag** anywhere to aim — a dotted line previews the shot.
 - **Release** to launch all your balls in a stream.
 - Each ball chips a brick's number down by 1; the brick breaks at 0.
-- Collect the glowing **`+` orbs** to add more balls to your stream.
-- After every round the bricks drop one row. **Don't let them reach the dashed
+- **Clear every brick to beat the level.** Each level celebration awards +2 balls,
+  then the next level starts with more rows, denser packing, and tougher bricks.
+- After every shot the bricks drop one row. **Don't let them reach the dashed
   line at the bottom** — that's game over.
 - Tap the **⏩ button** (bottom-right) while balls are flying to fast-forward.
-- Your best score is saved on the device.
+- Your best level is saved on the device.
+
+## Power-ups
+
+Collect these off the board by touching them with a ball:
+
+| Pickup | Effect |
+| --- | --- |
+| **＋ orb** (gold) | Adds a permanent extra ball to your stream. |
+| **⚡ Laser** (cyan) | Banks a charge. Tap the **⚡** button to fire vertical beams up every column that punch *through* all the stacked rows. |
+| **🌀 Scramble** (purple) | Banks a charge. Tap the **🌀** button mid-flight to fling all your balls off in fresh upward directions to catch stragglers. |
+| **💥 Bomb** (orange) | Explodes on contact, chain-damaging every nearby brick. |
+
+The **⚡** and **🌀** buttons appear at the bottom-left and glow when they're ready
+to use; the little badge shows how many charges you've banked.
 
 ## Play locally
 
@@ -54,8 +71,10 @@ Everything lives in `index.html`. A few easy tweaks near the top of the `<script
 
 - `COLS` / `ROWS` — board width and height.
 - `BASE_SPEED_FRAC` — ball speed.
-- The `spawnRow()` function controls difficulty (brick values, how many bricks
-  and orbs appear each round).
+- `LASER_DMG` / `BOMB_DMG` — how much punch the laser and bomb pack.
+- `levelRows(l)` — how many brick rows each level throws at you.
+- `newBrick()` controls brick toughness per level; `rollPickup()` and the
+  `puChance` line in `spawnTopRow()` control how often power-ups appear.
 
 You can also change the title and the "Made with 💛" line in the HTML, or swap the
 accent color by editing the `--accent` value in the `:root` CSS.
