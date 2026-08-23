@@ -1,0 +1,16 @@
+{
+  "name": "Brick N Balls",
+  "short_name": "Brick N Balls",
+  "description": "A cozy brick-breaker: aim, launch a stream of balls, and clear the numbered bricks before the stack reaches the bottom.",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0f1226",
+  "theme_color": "#0f1226",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

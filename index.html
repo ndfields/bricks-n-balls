@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0f1226">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<title>Brick N Balls</title>
+<style>
+  :root {
+    --bg: #0f1226;
+    --panel: #171a34;
+    --accent: #ffcf4d;
+    --text: #eef0ff;
+    --muted: #9aa0c9;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif;
+    overscroll-behavior: none;
+    -webkit-user-select: none; user-select: none;
+    touch-action: none;
+  }
+  #app {
+    position: fixed; inset: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+  }
+  #wrap {
+    position: relative;
+    width: 100%; height: 100%;
+    max-width: 520px;
+    margin: 0 auto;
+  }
+  canvas {
+    display: block;
+    width: 100%; height: 100%;
+    touch-action: none;
+  }
+  .overlay {
+    position: absolute; inset: 0;
+    display: none;
+    flex-direction: column;
+    align-items: center; justify-content: center;
+    text-align: center;
+    background: rgba(15, 18, 38, 0.86);
+    backdrop-filter: blur(6px);
+    padding: 24px;
+    z-index: 10;
+  }
+  .overlay.show { display: flex; }
+  .overlay h1 {
+    font-size: clamp(28px, 9vw, 46px);
+    margin: 0 0 6px;
+    letter-spacing: 0.5px;
+  }
+  .overlay .accent { color: var(--accent); }
+  .overlay p { color: var(--muted); margin: 6px 0; font-size: clamp(14px, 4vw, 17px); }
+  .big-score { font-size: clamp(40px, 14vw, 72px); font-weight: 800; margin: 8px 0; }
+  .best { color: var(--accent); font-weight: 700; }
+  button.play {
+    margin-top: 22px;
+    background: var(--accent);
+    color: #201a00;
+    border: none;
+    font-size: clamp(18px, 5vw, 22px);
+    font-weight: 800;
+    padding: 16px 42px;
+    border-radius: 999px;
+    cursor: pointer;
+    box-shadow: 0 8px 24px rgba(255, 207, 77, 0.3);
+    transition: transform 0.08s ease;
+  }
+  button.play:active { transform: scale(0.96); }
+  .hint { margin-top: 18px; color: var(--muted); font-size: 13px; max-width: 320px; line-height: 1.5; }
+  .speed-btn {
+    position: absolute;
+    right: 14px; bottom: 14px;
+    z-index: 5;
+    background: var(--panel);
+    color: var(--text);
+    border: 1px solid #2a2f55;
+    border-radius: 12px;
+    padding: 10px 14px;
+    font-size: 14px; font-weight: 700;
+    display: none;
+    align-items: center; gap: 6px;
+    cursor: pointer;
+  }
+  .speed-btn.show { display: flex; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="wrap">
+    <canvas id="game"></canvas>
+
+    <button id="speedBtn" class="speed-btn">⏩ <span id="speedLabel">2×</span></button>
+
+    <div id="startScreen" class="overlay show">
+      <h1>Brick <span class="accent">N</span> Balls</h1>
+      <p>Made with 💛</p>
+      <button id="startBtn" class="play">Play</button>
+      <div class="hint">
+        Drag to aim, release to launch your balls.<br>
+        Break every brick before the stack reaches the bottom.<br>
+        Scoop up the <span style="color:var(--accent)">+</span> orbs for more balls!
+      </div>
+    </div>
+
+    <div id="overScreen" class="overlay">
+      <h1>Game Over</h1>
+      <div class="big-score" id="finalScore">0</div>
+      <p>Best: <span class="best" id="bestScore">0</span></p>
+      <button id="againBtn" class="play">Play Again</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  // ---------- Config ----------
+  const COLS = 7;              // columns of bricks
+  const ROWS = 11;             // playfield rows (last row is the danger line)
+  const BALL_R_FRAC = 0.055;   // ball radius as fraction of cell size
+  const BASE_SPEED_FRAC = 0.62;// ball speed as fraction of cell per tick @ 60fps
+  const LAUNCH_GAP = 5;        // frames between consecutive ball launches
+  const MIN_AIM = 0.28;        // minimum aim angle above horizontal (radians)
+
+  const canvas = document.getElementById("game");
+  const ctx = canvas.getContext("2d");
+
+  // Layout (computed on resize)
+  let DPR = 1, W = 0, H = 0;       // CSS pixel size of canvas
+  let cell = 0;                    // brick cell size
+  let boardX = 0, boardTop = 0;    // top-left of the playfield
+  let boardW = 0, boardH = 0;
+  let launchY = 0;                 // y of the launch line (bottom)
+  let ballR = 0, ballSpeed = 0;
+
+  // Game state
+  let bricks = [];   // {col,row,val,max}
+  let orbs = [];     // {col,row}  extra-ball pickups
+  let balls = [];    // active balls {x,y,vx,vy}
+  let launchX = 0;
+  let ballCount = 1;
+  let level = 0;
+  let best = 0;
+
+  let state = "menu"; // menu | aiming | firing | resolving | over
+  let aim = null;     // {ax, ay} normalized direction while aiming
+  let firing = null;  // {dir, toFire, fired, timer}
+  let landedX = null; // x where first returning ball landed
+  let ballsToAdd = 0; // orbs collected this round
+  let speedMult = 1;  // 1 or 2 (fast-forward)
+
+  try { best = parseInt(localStorage.getItem("bnb_best") || "0", 10) || 0; } catch (e) { best = 0; }
+
+  // ---------- Layout ----------
+  function resize() {
+    const wrap = document.getElementById("wrap");
+    const rect = wrap.getBoundingClientRect();
+    DPR = Math.min(window.devicePixelRatio || 1, 3);
+    W = rect.width; H = rect.height;
+    canvas.width = Math.round(W * DPR);
+    canvas.height = Math.round(H * DPR);
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+
+    // Fit COLS across the width with a small margin.
+    const margin = Math.max(8, W * 0.02);
+    cell = (W - margin * 2) / COLS;
+    boardW = cell * COLS;
+    boardX = (W - boardW) / 2;
+
+    // Reserve space: top HUD (~cell) and bottom launch zone (~1.2 cell).
+    const topPad = cell * 1.15;
+    const bottomPad = cell * 1.15;
+    boardTop = topPad;
+    boardH = cell * ROWS;
+    launchY = boardTop + boardH;
+
+    // If too tall for the screen, shrink cells to fit vertically.
+    const needed = topPad + boardH + bottomPad;
+    if (needed > H) {
+      const scale = H / needed;
+      cell *= scale;
+      boardW = cell * COLS;
+      boardX = (W - boardW) / 2;
+      boardTop = cell * 1.15;
+      boardH = cell * ROWS;
+      launchY = boardTop + boardH;
+    }
+
+    ballR = cell * BALL_R_FRAC * 3.0;
+    ballSpeed = cell * BASE_SPEED_FRAC;
+    if (state === "menu" || state === "over") launchX = W / 2;
+    else launchX = clamp(launchX, boardX + ballR, boardX + boardW - ballR);
+  }
+  window.addEventListener("resize", () => { resize(); });
+  window.addEventListener("orientationchange", () => setTimeout(resize, 200));
+
+  // ---------- Helpers ----------
+  function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
+  function cellX(col) { return boardX + col * cell; }
+  function cellY(row) { return boardTop + row * cell; }
+
+  function brickColor(val, max) {
+    // Hue shifts from teal (low) toward hot pink/red (high value).
+    const t = Math.min(1, val / Math.max(8, max));
+    const hue = 175 - t * 175;        // 175 -> 0
+    const light = 52 - t * 8;
+    return `hsl(${hue}, 70%, ${light}%)`;
+  }
+
+  // ---------- Round setup ----------
+  function newGame() {
+    bricks = [];
+    orbs = [];
+    balls = [];
+    ballCount = 1;
+    level = 0;
+    ballsToAdd = 0;
+    landedX = null;
+    firing = null;
+    launchX = W / 2;
+    speedMult = 1;
+    updateSpeedBtn();
+    spawnRow();
+    state = "aiming";
+  }
+
+  function spawnRow() {
+    level++;
+    // Push everything down one row.
+    for (const b of bricks) b.row++;
+    for (const o of orbs) o.row++;
+
+    // Difficulty: brick values scale with level.
+    const hp = level;
+    // Choose which columns get bricks this row (2..COLS-1 of them).
+    const cols = [0,1,2,3,4,5,6];
+    shuffle(cols);
+    const nBricks = 2 + Math.floor(Math.random() * (COLS - 2));
+    const chosen = cols.slice(0, nBricks);
+    for (const c of chosen) {
+      // Occasionally a tougher double-value brick.
+      const val = Math.random() < 0.18 ? hp * 2 : hp;
+      bricks.push({ col: c, row: 0, val, max: val });
+    }
+    // Remaining columns: chance of an extra-ball orb (at least usually one).
+    const rest = cols.slice(nBricks);
+    if (rest.length) {
+      // guarantee ~1 orb most rounds
+      if (Math.random() < 0.85) {
+        orbs.push({ col: rest[0], row: 0 });
+      }
+      if (rest.length > 2 && Math.random() < 0.25) {
+        orbs.push({ col: rest[1], row: 0 });
+      }
+    }
+
+    // Check loss: any brick reaching the danger row.
+    for (const b of bricks) {
+      if (b.row >= ROWS - 1) { gameOver(); return; }
+    }
+  }
+
+  function shuffle(a) {
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+  }
+
+  function gameOver() {
+    state = "over";
+    if (level - 1 > best) {
+      best = level - 1;
+      try { localStorage.setItem("bnb_best", String(best)); } catch (e) {}
+    }
+    document.getElementById("finalScore").textContent = String(level - 1);
+    document.getElementById("bestScore").textContent = String(best);
+    document.getElementById("overScreen").classList.add("show");
+    document.getElementById("speedBtn").classList.remove("show");
+  }
+
+  // ---------- Firing ----------
+  function startFiring(dir) {
+    firing = { dir, toFire: ballCount, fired: 0, timer: 0 };
+    landedX = null;
+    ballsToAdd = 0;
+    state = "firing";
+    document.getElementById("speedBtn").classList.add("show");
+  }
+
+  function stepFiring() {
+    if (!firing) return;
+    if (firing.fired < firing.toFire) {
+      firing.timer--;
+      if (firing.timer <= 0) {
+        balls.push({
+          x: launchX,
+          y: launchY - ballR - 0.5,
+          vx: firing.dir.x * ballSpeed,
+          vy: firing.dir.y * ballSpeed,
+        });
+        firing.fired++;
+        firing.timer = LAUNCH_GAP;
+      }
+    }
+  }
+
+  // Move one ball a full tick using small substeps for stable collisions.
+  function moveBall(ball) {
+    const steps = 4;
+    for (let s = 0; s < steps; s++) {
+      ball.x += ball.vx / steps;
+      ball.y += ball.vy / steps;
+
+      // Walls
+      if (ball.x - ballR < boardX) { ball.x = boardX + ballR; ball.vx = Math.abs(ball.vx); }
+      if (ball.x + ballR > boardX + boardW) { ball.x = boardX + boardW - ballR; ball.vx = -Math.abs(ball.vx); }
+      // Ceiling
+      if (ball.y - ballR < boardTop) { ball.y = boardTop + ballR; ball.vy = Math.abs(ball.vy); }
+
+      // Orbs (collect, no bounce)
+      for (let i = orbs.length - 1; i >= 0; i--) {
+        const o = orbs[i];
+        const ox = cellX(o.col) + cell / 2;
+        const oy = cellY(o.row) + cell / 2;
+        const rr = cell * 0.22 + ballR;
+        if ((ball.x - ox) ** 2 + (ball.y - oy) ** 2 < rr * rr) {
+          orbs.splice(i, 1);
+          ballsToAdd++;
+        }
+      }
+
+      // Bricks (AABB reflection)
+      for (let i = 0; i < bricks.length; i++) {
+        const b = bricks[i];
+        const bx = cellX(b.col) + cell * 0.04;
+        const by = cellY(b.row) + cell * 0.04;
+        const bw = cell * 0.92, bh = cell * 0.92;
+        // closest point on rect to ball center
+        const cx = clamp(ball.x, bx, bx + bw);
+        const cy = clamp(ball.y, by, by + bh);
+        const dx = ball.x - cx, dy = ball.y - cy;
+        if (dx * dx + dy * dy < ballR * ballR) {
+          // Resolve along the smaller penetration axis.
+          const overlapX = ballR - Math.abs(dx);
+          const overlapY = ballR - Math.abs(dy);
+          if (Math.abs(dx) > Math.abs(dy) || (dx !== 0 && overlapX < overlapY)) {
+            ball.vx = dx >= 0 ? Math.abs(ball.vx) : -Math.abs(ball.vx);
+            ball.x += (dx >= 0 ? 1 : -1) * (overlapX + 0.5);
+          } else {
+            ball.vy = dy >= 0 ? Math.abs(ball.vy) : -Math.abs(ball.vy);
+            ball.y += (dy >= 0 ? 1 : -1) * (overlapY + 0.5);
+          }
+          b.val--;
+          if (b.val <= 0) { bricks.splice(i, 1); }
+          break; // one brick per substep
+        }
+      }
+    }
+
+    // Floor: ball returns.
+    if (ball.y + ballR >= launchY) {
+      ball.dead = true;
+      if (landedX === null) landedX = clamp(ball.x, boardX + ballR, boardX + boardW - ballR);
+    }
+  }
+
+  function stepBalls() {
+    for (const ball of balls) moveBall(ball);
+    balls = balls.filter(b => !b.dead);
+  }
+
+  function endRound() {
+    if (landedX !== null) launchX = landedX;
+    ballCount += ballsToAdd;
+    ballsToAdd = 0;
+    firing = null;
+    state = "resolving";
+    // brief pause then advance
+    spawnRow();
+    if (state !== "over") state = "aiming";
+    document.getElementById("speedBtn").classList.remove("show");
+    speedMult = 1;
+    updateSpeedBtn();
+  }
+
+  // ---------- Input ----------
+  let pointerDown = false;
+
+  function pointerPos(e) {
+    const rect = canvas.getBoundingClientRect();
+    const p = (e.touches && e.touches[0]) ? e.touches[0] : e;
+    return { x: p.clientX - rect.left, y: p.clientY - rect.top };
+  }
+
+  function onDown(e) {
+    if (state !== "aiming") return;
+    e.preventDefault();
+    pointerDown = true;
+    updateAim(pointerPos(e));
+  }
+  function onMove(e) {
+    if (!pointerDown || state !== "aiming") return;
+    e.preventDefault();
+    updateAim(pointerPos(e));
+  }
+  function onUp(e) {
+    if (!pointerDown) return;
+    e.preventDefault();
+    pointerDown = false;
+    if (state === "aiming" && aim) {
+      const dir = { x: aim.x, y: aim.y };
+      aim = null;
+      startFiring(dir);
+    }
+  }
+
+  function updateAim(p) {
+    let dx = p.x - launchX;
+    let dy = p.y - launchY;
+    // Only allow aiming upward.
+    if (dy > -1) dy = -1;
+    let len = Math.hypot(dx, dy);
+    if (len < 0.0001) { aim = null; return; }
+    let nx = dx / len, ny = dy / len;
+    // Enforce minimum angle from horizontal so you can't shoot flat/down.
+    const ang = Math.atan2(-ny, nx); // 0..pi, pi/2 = straight up
+    const minA = MIN_AIM, maxA = Math.PI - MIN_AIM;
+    let a = clamp(ang, minA, maxA);
+    nx = Math.cos(a);
+    ny = -Math.sin(a);
+    aim = { x: nx, y: ny };
+  }
+
+  canvas.addEventListener("touchstart", onDown, { passive: false });
+  canvas.addEventListener("touchmove", onMove, { passive: false });
+  canvas.addEventListener("touchend", onUp, { passive: false });
+  canvas.addEventListener("touchcancel", onUp, { passive: false });
+  canvas.addEventListener("mousedown", onDown);
+  window.addEventListener("mousemove", onMove);
+  window.addEventListener("mouseup", onUp);
+
+  // Speed toggle
+  const speedBtn = document.getElementById("speedBtn");
+  function updateSpeedBtn() {
+    document.getElementById("speedLabel").textContent = speedMult === 1 ? "2×" : "1×";
+  }
+  speedBtn.addEventListener("click", () => {
+    speedMult = speedMult === 1 ? 2 : 1;
+    updateSpeedBtn();
+  });
+
+  // Buttons
+  document.getElementById("startBtn").addEventListener("click", () => {
+    document.getElementById("startScreen").classList.remove("show");
+    newGame();
+  });
+  document.getElementById("againBtn").addEventListener("click", () => {
+    document.getElementById("overScreen").classList.remove("show");
+    newGame();
+  });
+
+  // ---------- Update ----------
+  function update() {
+    const ticks = (state === "firing") ? speedMult : 1;
+    for (let t = 0; t < ticks; t++) {
+      if (state === "firing") {
+        stepFiring();
+        stepBalls();
+        if (firing && firing.fired >= firing.toFire && balls.length === 0) {
+          endRound();
+          break;
+        }
+      }
+    }
+  }
+
+  // ---------- Render ----------
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+
+    // Playfield background
+    ctx.fillStyle = "#12152b";
+    roundRect(boardX - 3, boardTop - 3, boardW + 6, boardH + 6, 10);
+    ctx.fill();
+
+    // Danger line
+    const dangerY = cellY(ROWS - 1);
+    ctx.strokeStyle = "rgba(255,80,90,0.35)";
+    ctx.lineWidth = 2;
+    ctx.setLineDash([6, 6]);
+    ctx.beginPath();
+    ctx.moveTo(boardX, dangerY);
+    ctx.lineTo(boardX + boardW, dangerY);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Bricks
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    for (const b of bricks) {
+      const x = cellX(b.col) + cell * 0.04;
+      const y = cellY(b.row) + cell * 0.04;
+      const s = cell * 0.92;
+      ctx.fillStyle = brickColor(b.val, Math.max(b.max, level));
+      roundRect(x, y, s, s, cell * 0.14);
+      ctx.fill();
+      ctx.fillStyle = "rgba(0,0,0,0.7)";
+      ctx.font = `700 ${Math.round(cell * 0.34)}px system-ui, sans-serif`;
+      ctx.fillText(String(b.val), x + s / 2, y + s / 2 + 1);
+    }
+
+    // Orbs (extra balls)
+    for (const o of orbs) {
+      const ox = cellX(o.col) + cell / 2;
+      const oy = cellY(o.row) + cell / 2;
+      ctx.beginPath();
+      ctx.arc(ox, oy, cell * 0.22, 0, Math.PI * 2);
+      ctx.fillStyle = "#1b1f3d";
+      ctx.fill();
+      ctx.lineWidth = 2.5;
+      ctx.strokeStyle = "var(--accent)";
+      ctx.strokeStyle = "#ffcf4d";
+      ctx.stroke();
+      ctx.fillStyle = "#ffcf4d";
+      ctx.font = `800 ${Math.round(cell * 0.3)}px system-ui, sans-serif`;
+      ctx.fillText("+", ox, oy + 1);
+    }
+
+    // Balls in flight
+    ctx.fillStyle = "#ffffff";
+    for (const b of balls) {
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, ballR, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Launch marker + ball stack when aiming
+    if (state === "aiming" || state === "menu") {
+      ctx.fillStyle = "#ffffff";
+      ctx.beginPath();
+      ctx.arc(launchX, launchY - ballR - 0.5, ballR, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Aim trajectory
+    if (state === "aiming" && aim && pointerDown) {
+      drawAim();
+    }
+
+    // HUD
+    drawHUD();
+  }
+
+  function drawAim() {
+    // Simulate a bouncing preview path (walls + ceiling only, ignore bricks
+    // beyond the first few dots for clarity).
+    let x = launchX, y = launchY - ballR - 0.5;
+    let vx = aim.x * ballSpeed, vy = aim.y * ballSpeed;
+    const dots = 26;
+    const stepLen = cell * 0.55;
+    ctx.fillStyle = "rgba(255,255,255,0.5)";
+    let dist = 0;
+    let placed = 0;
+    for (let i = 0; i < 900 && placed < dots; i++) {
+      x += vx * 0.5; y += vy * 0.5;
+      if (x - ballR < boardX) { x = boardX + ballR; vx = Math.abs(vx); }
+      if (x + ballR > boardX + boardW) { x = boardX + boardW - ballR; vx = -Math.abs(vx); }
+      if (y - ballR < boardTop) { y = boardTop + ballR; vy = Math.abs(vy); }
+      // stop preview if it would hit a brick
+      let hit = false;
+      for (const b of bricks) {
+        const bx = cellX(b.col), by = cellY(b.row);
+        if (x > bx && x < bx + cell && y > by && y < by + cell) { hit = true; break; }
+      }
+      if (hit || y > launchY) break;
+      dist += ballSpeed * 0.5;
+      if (dist >= stepLen) {
+        dist = 0;
+        ctx.beginPath();
+        ctx.arc(x, y, ballR * 0.5, 0, Math.PI * 2);
+        ctx.fill();
+        placed++;
+      }
+    }
+  }
+
+  function drawHUD() {
+    const pad = 6;
+    ctx.textAlign = "left";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = "#eef0ff";
+    ctx.font = `800 ${Math.round(cell * 0.42)}px system-ui, sans-serif`;
+    const hy = boardTop * 0.55;
+    ctx.fillText("♦ " + (level > 0 ? level - 1 : 0), boardX + 2, hy);
+
+    // Ball count (right)
+    ctx.textAlign = "right";
+    ctx.fillStyle = "#ffcf4d";
+    let shown = ballCount;
+    if (state === "firing" && firing) shown = firing.toFire;
+    ctx.fillText("● " + shown, boardX + boardW - 2, hy);
+
+    // Best (center, small)
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#9aa0c9";
+    ctx.font = `600 ${Math.round(cell * 0.26)}px system-ui, sans-serif`;
+    ctx.fillText("Best " + best, W / 2, hy);
+  }
+
+  function roundRect(x, y, w, h, r) {
+    r = Math.min(r, w / 2, h / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+
+  // ---------- Loop ----------
+  function frame() {
+    update();
+    draw();
+    requestAnimationFrame(frame);
+  }
+
+  resize();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
