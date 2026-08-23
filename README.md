@@ -23,17 +23,16 @@ logic) designed to run great on a phone and be hosted for free on GitHub Pages.
 
 ## Power-ups
 
-Collect these off the board by touching them with a ball:
+Power-ups are **special blocks mixed into the grid** among the numbered bricks.
+There are no buttons to press — just hit a special block with a ball and it
+triggers automatically, then it's consumed.
 
-| Pickup | Effect |
+| Block | Effect |
 | --- | --- |
-| **＋ orb** (gold) | Adds a permanent extra ball to your stream. |
-| **⚡ Laser** (cyan) | Banks a charge. Tap the **⚡** button to fire vertical beams up every column that punch *through* all the stacked rows. |
-| **🌀 Scramble** (purple) | Banks a charge. Tap the **🌀** button mid-flight to fling all your balls off in fresh upward directions to catch stragglers. |
-| **💥 Bomb** (orange) | Explodes on contact, chain-damaging every nearby brick. |
-
-The **⚡** and **🌀** buttons appear at the bottom-left and glow when they're ready
-to use; the little badge shows how many charges you've banked.
+| **＋1** (gold) | Adds a permanent extra ball to your stream. |
+| **×2** (green) | Multiplier — spawns extra balls mid-flight for big chain hits. |
+| **⇋ Laser** (cyan) | Fires a beam across its **row or column**, clearing every brick in that line. The arrow on the block shows which way it shoots. |
+| **↑ Redirect** (orange) | Bends the ball that hits it off in a new direction to reach tricky angles. |
 
 ## Play locally
 
@@ -71,10 +70,11 @@ Everything lives in `index.html`. A few easy tweaks near the top of the `<script
 
 - `COLS` / `ROWS` — board width and height.
 - `BASE_SPEED_FRAC` — ball speed.
-- `LASER_DMG` / `BOMB_DMG` — how much punch the laser and bomb pack.
 - `levelRows(l)` — how many brick rows each level throws at you.
-- `newBrick()` controls brick toughness per level; `rollPickup()` and the
-  `puChance` line in `spawnTopRow()` control how often power-ups appear.
+- `newBrick()` controls brick toughness per level.
+- `rollPower()` sets which special blocks appear and how often each type comes
+  up; the `puChance` line in `spawnTopRow()` controls how frequently any special
+  block shows up at all.
 
 You can also change the title and the "Made with 💛" line in the HTML, or swap the
 accent color by editing the `--accent` value in the `:root` CSS.
