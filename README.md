@@ -1,10 +1,9 @@
 # Brick N Balls 💛
 
-A custom, mobile-first brick-breaker game — the "Bricks n Balls" / "Ballz" style
-where you aim, launch a stream of bouncing balls, and clear the numbered bricks
-before the stack marches down to the bottom line. It's **level-based** and gets
-tougher as you climb, with collectible **power-ups** (lasers, scramblers, bombs)
-and juicy particle/glow effects.
+A custom, mobile-first brick-breaker in the style of **Brick Blast / Ball Breaker**:
+aim, launch a stream of bouncing balls, and clear the numbered bricks before the
+stack marches down to the bottom. It's **level-based**, gets tougher as you climb,
+and mixes **special power-up blocks** right into the grid.
 
 It's a single self-contained HTML file (no build step, no dependencies, no server
 logic) designed to run great on a phone and be hosted for free on GitHub Pages.
@@ -12,27 +11,32 @@ logic) designed to run great on a phone and be hosted for free on GitHub Pages.
 ## How to play
 
 - **Drag** anywhere to aim — a dotted line previews the shot.
-- **Release** to launch all your balls in a stream.
-- Each ball chips a brick's number down by 1; the brick breaks at 0.
-- **Clear every brick to beat the level.** Each level celebration awards +2 balls,
-  then the next level starts with more rows, denser packing, and tougher bricks.
-- After every shot the bricks drop one row. **Don't let them reach the dashed
-  line at the bottom** — that's game over.
-- Tap the **⏩ button** (bottom-right) while balls are flying to fast-forward.
+- **Release** to launch your whole stream of balls.
+- Each ball knocks a brick's number down by 1; the brick shatters at 0.
+- **Clear every brick to beat the level.** Clearing awards +2 balls, then the next
+  level brings more rows, denser packing, and higher-numbered bricks.
+- After every shot the bricks drop one row. When they reach the bottom row the
+  board flashes **red warning triangles** — that's your last turn before game over.
+- The **combo counter** above the board tracks hits for the turn and heats up from
+  blue to pink to flaming red, with a **Super Combo!** banner at big streaks.
+- Tap **⏩** to fast-forward, or **Return** to call all your balls home early.
 - Your best level is saved on the device.
 
-## Power-ups
+## Blocks
 
-Power-ups are **special blocks mixed into the grid** among the numbered bricks.
-There are no buttons to press — just hit a special block with a ball and it
-triggers automatically, then it's consumed.
+**Numbered bricks** are colour-coded by how tough they are, from cyan (easy) to
+green, gold, and red (hardest). Some are **triangle wedges** that bounce balls off
+at 45° — great for banking shots into awkward corners.
+
+**Special blocks** are mixed into the grid. There are no buttons to press: hit one
+with a ball and it fires automatically.
 
 | Block | Effect |
 | --- | --- |
-| **＋1** (gold) | Adds a permanent extra ball to your stream. |
-| **×2** (green) | Multiplier — spawns extra balls mid-flight for big chain hits. |
-| **⇋ Laser** (cyan) | Fires a beam across its **row or column**, clearing every brick in that line. The arrow on the block shows which way it shoots. |
-| **↑ Redirect** (orange) | Bends the ball that hits it off in a new direction to reach tricky angles. |
+| **+5** (green ring) | Adds 5 balls to your stream — **permanent**, for every turn from now on. |
+| **Ball cluster + arrow** (orange ring) | A big burst of **bonus balls for this turn only**. They fly in pink so you can tell them apart, and they vanish when the turn ends — your permanent count is unchanged. |
+| **Ball with spray arrows** (blue ring) | **Splitter** — the ball that hits it splits into extra balls fanning outward. |
+| **Spinning bar** (pink ring) | A **rotating deflector** that stays on the board and knocks balls off at whatever angle it happens to be pointing. |
 
 ## Play locally
 
@@ -68,16 +72,19 @@ its own icon, just like an installed game.
 
 Everything lives in `index.html`. A few easy tweaks near the top of the `<script>`:
 
-- `COLS` / `ROWS` — board width and height.
+- `COLS` — how many columns wide the board is (`ROWS` auto-fits the screen).
 - `BASE_SPEED_FRAC` — ball speed.
+- `BONUS_BALLS` — how many one-turn bonus balls the orange block gives (default 24).
+- `SPIN_RATE` — how fast the pink deflector spins.
 - `levelRows(l)` — how many brick rows each level throws at you.
-- `newBrick()` controls brick toughness per level.
-- `rollPower()` sets which special blocks appear and how often each type comes
-  up; the `puChance` line in `spawnTopRow()` controls how frequently any special
+- `freshValue()` controls brick toughness per level; `brickTier()` sets the
+  colour thresholds.
+- `rollSpecial()` sets which special blocks appear and how often each type comes
+  up; the `0.42` chance in `spawnTopRow()` controls how frequently any special
   block shows up at all.
 
 You can also change the title and the "Made with 💛" line in the HTML, or swap the
-accent color by editing the `--accent` value in the `:root` CSS.
+colours by editing the `--bg1` / `--bg2` / `--accent` values in the `:root` CSS.
 
 ## Files
 
