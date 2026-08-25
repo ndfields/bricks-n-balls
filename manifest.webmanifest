@@ -1,7 +1,7 @@
 {
-  "name": "Brick N Balls",
-  "short_name": "Brick N Balls",
-  "description": "A level-based brick-breaker: aim, launch a stream of balls, hit special blocks for bonus balls, splitters and spinners, and clear the numbered bricks before they reach the bottom.",
+  "name": "Buzzy's Balls",
+  "short_name": "Buzzy's Balls",
+  "description": "A level-based brick-breaker: aim, launch a stream of balls, hit laser, scrambler and bonus-ball blocks, and clear the numbered bricks before they reach the bottom.",
   "start_url": ".",
   "scope": ".",
   "display": "standalone",

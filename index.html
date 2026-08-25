@@ -10,7 +10,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" href="icon-192.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<title>Brick N Balls</title>
+<title>Buzzy's Balls</title>
 <style>
   :root {
     --bg1: #3d51a8;
@@ -84,7 +84,7 @@
     </div>
 
     <div id="startScreen" class="overlay show">
-      <h1>Brick <span class="accent">Blast</span></h1>
+      <h1>Buzzy's <span class="accent">Balls</span></h1>
       <p>Made with 💛</p>
       <button id="startBtn" class="play">Play</button>
       <div class="hint">
@@ -93,8 +93,8 @@
         <div class="legend">
           <div><b style="color:#3ddc84">+5</b> permanent balls</div>
           <div><b style="color:#ff8a3d">⁘↑</b> bonus balls, this turn</div>
-          <div><b style="color:#4aa8ff">⋔</b> splits your ball</div>
-          <div><b style="color:#ff45a0">⊘</b> spinning deflector</div>
+          <div><b style="color:#46e0ff">⇔</b> laser: 1 dmg down its row</div>
+          <div><b style="color:#b17bff">✳</b> scrambles ball directions</div>
         </div>
       </div>
     </div>
@@ -117,14 +117,15 @@
   const COLS = 7;
   let ROWS = 11;                   // row ROWS-1 is the danger row; past it = game over (fits to screen)
   const BALL_R_FRAC = 0.13;
-  const BASE_SPEED_FRAC = 0.72;
+  const BASE_SPEED_FRAC = 0.52;
   const LAUNCH_GAP = 3;
   const MIN_AIM = 0.22;
   const STEP = 1000 / 60;
   const DESCEND_EASE = 0.013;
   const MAX_BALLS = 400;
-  const BONUS_BALLS = 24;          // one-turn-only bonus balls
-  const SPIN_RATE = 0.0019;        // rad per ms
+  const START_BALLS = 60;          // you begin with a full stream, like the reference game
+  const BONUS_BALLS = 30;          // one-turn-only bonus balls
+  const TOP_GAP = 1;               // rows always left clear above the stack
 
   const canvas = document.getElementById("game");
   const ctx = canvas.getContext("2d");
@@ -140,12 +141,13 @@
   let balls = [];
   let particles = [];
   let floaters = [];
+  let beams = [];     // {row,dy,t} laser flashes
 
   // Game state
   let state = "menu";
   let level = 1, score = 0, bestLevel = 1;
   let rowsLeft = 0, rowsTotal = 0;
-  let ballCount = 1, launchX = 0;
+  let ballCount = START_BALLS, launchX = 0;
   let aim = null, pointerDown = false;
   let firing = null, landedX = null, ballsToAdd = 0;
   let speedMult = 1, returning = false;
@@ -199,7 +201,7 @@
 
   // Brick colour tiers by value relative to the level's ceiling: cyan -> green -> gold -> red
   function brickTier(val) {
-    const r = val / Math.max(12, level);
+    const r = val / ((12 + level * 11) * 1.15);   // relative to this level's toughest fresh brick
     if (r < 0.32) return { a: "#7fd8ff", b: "#3aa9e6", t: "#0d3f5c" };
     if (r < 0.62) return { a: "#7ff08e", b: "#31c14e", t: "#0b4718" };
     if (r < 0.88) return { a: "#ffd97a", b: "#f0ac25", t: "#5a3a03" };
@@ -220,41 +222,51 @@
   }
 
   // ---------- Level generation ----------
-  function levelRows(l) { return Math.min(9 + l * 2, 30); }
+  function levelRows(l) { return Math.min(10 + l * 3, 42); }
 
   function freshValue() {
-    let v = Math.round(rand(level * 0.22, level * 0.98));
-    if (level >= 15) v = Math.max(10, Math.round(v / 10) * 10);
+    // Brick toughness climbs much faster than the ball count does, so later
+    // levels actually bite instead of melting in one turn.
+    const base = 12 + level * 11;
+    let v = Math.round(rand(base * 0.55, base * 1.2));
+    if (Math.random() < 0.14) v = Math.round(v * 1.8);
+    if (level >= 6) v = Math.max(5, Math.round(v / 5) * 5);
     return Math.max(1, v);
   }
   function newBrick(col) {
     const v = freshValue();
-    const b = { col, row: 0, val: v, max: v, dy: -cell, hitT: 0, shape: "square", ori: null };
+    const b = { col, row: TOP_GAP, val: v, max: v, dy: -cell * (TOP_GAP + 1), hitT: 0, shape: "square", ori: null };
     if (Math.random() < 0.09) { b.shape = "tri"; b.ori = pick(["tl", "tr", "bl", "br"]); }
     return b;
   }
   function rollSpecial() {
     const r = Math.random();
-    if (r < 0.40) return { type: "add5" };
-    if (r < 0.66) return { type: "split" };
-    if (r < 0.84) return { type: "spin", ang: Math.random() * 3.14 };
+    if (r < 0.38) return { type: "add5" };
+    if (r < 0.66) return { type: "laser", cd: 0 };
+    if (r < 0.86) return { type: "scramble" };
     return { type: "bonus" };
   }
 
   function descendAll() {
     for (const b of bricks) { b.row++; b.dy -= cell; }
     for (const s of specials) { s.row++; s.dy -= cell; }
+    specials = specials.filter(s => s.row < ROWS);   // specials just fall off the bottom
     for (const b of bricks) if (b.row >= ROWS) { gameOver(); return true; }
     return false;
   }
+  // New rows always appear at TOP_GAP, never flush with the ceiling, so there is
+  // always an open lane above the stack to break through into. The row itself may
+  // be completely closed off across every column.
   function spawnTopRow() {
     const cols = shuffle([0, 1, 2, 3, 4, 5, 6]);
-    const density = clamp(2 + Math.floor(level / 2) + randInt(0, 1), 2, COLS - 1);
-    for (const c of cols.slice(0, density)) bricks.push(newBrick(c));
-    const rest = cols.slice(density);
-    if (rest.length && Math.random() < 0.42) {
-      const s = rollSpecial(); s.col = rest[0]; s.row = 0; s.dy = -cell; s.phase = Math.random() * 6;
-      if (s.ang === undefined) s.ang = 0;
+    const hasSpecial = Math.random() < 0.5;
+    const specCols = hasSpecial ? cols.slice(0, 1) : [];
+    const pool = hasSpecial ? cols.slice(1) : cols;
+    const density = clamp(3 + Math.floor(level / 2) + randInt(0, 1), 3, pool.length);
+    for (const c of pool.slice(0, density)) bricks.push(newBrick(c));
+    for (const c of specCols) {
+      const s = rollSpecial();
+      s.col = c; s.row = TOP_GAP; s.dy = -cell * (TOP_GAP + 1); s.phase = Math.random() * 6;
       specials.push(s);
     }
   }
@@ -262,7 +274,7 @@
 
   function startLevel(l) {
     level = l;
-    bricks = []; specials = []; balls = [];
+    bricks = []; specials = []; balls = []; beams = [];
     firing = null; landedX = null; ballsToAdd = 0; returning = false;
     speedMult = 1; updateSpeedBtn(); combo = 0;
     ballSpeed = cell * BASE_SPEED_FRAC;
@@ -273,7 +285,7 @@
     syncButtons();
   }
   function newGame() {
-    level = 1; score = 0; ballCount = 1;
+    level = 1; score = 0; ballCount = START_BALLS;
     particles = []; floaters = []; launchX = W / 2;
     startLevel(1);
   }
@@ -321,7 +333,7 @@
     if (!firing || firing.fired >= firing.toFire || returning) return;
     if (--firing.timer <= 0) {
       balls.push(mkBall(launchX, launchY - ballR - 0.5, firing.dir.x * ballSpeed, firing.dir.y * ballSpeed, false));
-      firing.fired++; firing.timer = LAUNCH_GAP;
+      firing.fired++; firing.timer = firing.toFire > 40 ? 1 : LAUNCH_GAP;
     }
   }
   function mkBall(x, y, vx, vy, bonus) { return { x, y, vx, vy, trail: [], bonus: !!bonus }; }
@@ -348,14 +360,15 @@
         const a = -(0.25 + Math.random() * (Math.PI - 0.5));
         balls.push(mkBall(x, y, Math.cos(a) * ballSpeed, Math.sin(a) * ballSpeed, true));
       }
-    } else if (s.type === "split") {
-      burst(x, y, "#4aa8ff", 12, 0.2 * cell); floatText(x, y, "SPLIT", "#4aa8ff", cell * 0.26);
-      const sp = Math.hypot(ball.vx, ball.vy) || ballSpeed;
-      const base = Math.atan2(ball.vy, ball.vx);
-      for (let k = -1; k <= 1; k += 2) {
-        if (balls.length >= MAX_BALLS) break;
-        const a = base + k * 0.5;
-        balls.push(mkBall(x, y, Math.cos(a) * sp, Math.sin(a) * sp, ball.bonus));
+    } else if (s.type === "scramble") {
+      // Re-aims every ball in play. Never adds any.
+      burst(x, y, "#b17bff", 14, 0.22 * cell); floatText(x, y, "SCRAMBLE", "#b17bff", cell * 0.24);
+      addShake(5);
+      for (const bl of balls) {
+        const spd = Math.hypot(bl.vx, bl.vy) || ballSpeed;
+        const a = -(0.28 + Math.random() * (Math.PI - 0.56));
+        bl.vx = Math.cos(a) * spd; bl.vy = Math.sin(a) * spd;
+        bl.trail.length = 0;
       }
     }
   }
@@ -426,22 +439,34 @@
     return true;
   }
 
-  function collideSpinner(ball, s) {
-    const cx = cellX(s.col) + cell / 2, cy = cellY(s.row) + cell / 2 + s.dy;
-    const L = cell * 0.34, rr = cell * 0.06;
-    const ax = cx - Math.cos(s.ang) * L, ay = cy - Math.sin(s.ang) * L;
-    const bx = cx + Math.cos(s.ang) * L, by = cy + Math.sin(s.ang) * L;
-    const p = closestOnSeg(ball.x, ball.y, ax, ay, bx, by);
-    let nx = ball.x - p.x, ny = ball.y - p.y;
-    let len = Math.hypot(nx, ny);
-    const R = ballR + rr;
-    if (len >= R) return false;
-    if (len < 1e-6) { nx = -Math.sin(s.ang); ny = Math.cos(s.ang); len = 1; }
-    nx /= len; ny /= len;
-    ball.x = p.x + nx * (R + 0.5); ball.y = p.y + ny * (R + 0.5);
-    reflect(ball, nx, ny);
-    burst(ball.x, ball.y, "#ff45a0", 3, 0.1 * cell);
+  // The laser block is solid: balls bounce off it, and each ball that connects
+  // fires a beam that takes exactly 1 off every brick sharing its row.
+  function collideLaser(ball, s) {
+    const bx = cellX(s.col) + cell * 0.03, by = cellY(s.row) + cell * 0.03 + s.dy;
+    const bw = cell * 0.94, bh = cell * 0.94;
+    const px = clamp(ball.x, bx, bx + bw), py = clamp(ball.y, by, by + bh);
+    const dx = ball.x - px, dy = ball.y - py;
+    if (dx * dx + dy * dy >= ballR * ballR) return false;
+    const ox = ballR - Math.abs(dx), oy = ballR - Math.abs(dy);
+    if (Math.abs(dx) > Math.abs(dy) || (dx !== 0 && ox < oy)) {
+      ball.vx = dx >= 0 ? Math.abs(ball.vx) : -Math.abs(ball.vx);
+      ball.x += (dx >= 0 ? 1 : -1) * (ox + 0.5);
+    } else {
+      ball.vy = dy >= 0 ? Math.abs(ball.vy) : -Math.abs(ball.vy);
+      ball.y += (dy >= 0 ? 1 : -1) * (oy + 0.5);
+    }
     return true;
+  }
+  function fireLaser(s) {
+    // Exactly one point of damage per ball that connects - the ball is pushed
+    // clear of the block on impact, so a single ball can only fire this once.
+    beams.push({ row: s.row, dy: s.dy, t: 300 });
+    for (const b of bricks) {
+      if (b.row !== s.row || b.dead) continue;
+      damageBrick(b, 1, cellX(b.col) + cell / 2, cellY(b.row) + cell / 2 + b.dy);
+      if (b.dead) brickIndex.delete(b.row * COLS + b.col);
+    }
+    addShake(4);
   }
 
   function buildIndex() {
@@ -462,7 +487,7 @@
       // specials
       for (let i = specials.length - 1; i >= 0; i--) {
         const sp2 = specials[i];
-        if (sp2.type === "spin") { collideSpinner(ball, sp2); continue; }
+        if (sp2.type === "laser") { if (collideLaser(ball, sp2)) fireLaser(sp2); continue; }
         const bx = cellX(sp2.col), by = cellY(sp2.row) + sp2.dy;
         if (ball.x > bx - ballR && ball.x < bx + cell + ballR && ball.y > by - ballR && ball.y < by + cell + ballR) {
           specials.splice(i, 1);
@@ -487,9 +512,16 @@
     if (ball.trail.length > 4) ball.trail.shift();
 
     if (ball.y + ballR >= launchY) {
-      ball.dead = true;
-      if (!ball.bonus && landedX === null) landedX = clamp(ball.x, boardX + ballR, boardX + boardW - ballR);
       burst(ball.x, launchY, "rgba(255,220,120,0.9)", 3, 0.09 * cell);
+      if (landedX === null) {
+        // First ball home sets the collection point for the whole turn.
+        landedX = clamp(ball.x, boardX + ballR, boardX + boardW - ballR);
+        ball.x = landedX; ball.dead = true;
+      } else {
+        // Everyone else rolls along the floor to that same spot.
+        ball.landing = true; ball.y = launchY - ballR; ball.vx = 0; ball.vy = 0;
+        ball.trail.length = 0;
+      }
     }
   }
 
@@ -501,9 +533,17 @@
         b.vx = dx / l * s; b.vy = dy / l * s;
       }
     }
-    for (const b of balls) moveBall(b);
+    for (const b of balls) { if (b.landing) slideHome(b); else moveBall(b); }
     if (bricks.some(b => b.dead)) bricks = bricks.filter(b => !b.dead);
     balls = balls.filter(b => !b.dead);
+  }
+
+  // Landed balls roll across the floor to the collection point, then tuck away.
+  function slideHome(b) {
+    b.y = launchY - ballR;
+    const dx = landedX - b.x, sp = ballSpeed * 2.4;
+    if (Math.abs(dx) <= sp) { b.x = landedX; b.dead = true; }
+    else b.x += Math.sign(dx) * sp;
   }
 
   function physicsTick() {
@@ -550,7 +590,9 @@
     if (shake.t > 0) shake.t -= dt;
     if (comboBannerT > 0) comboBannerT -= dt;
     for (const b of bricks) { if (b.dy !== 0) { b.dy += -b.dy * Math.min(1, dt * DESCEND_EASE); if (Math.abs(b.dy) < 0.4) b.dy = 0; } if (b.hitT > 0) b.hitT = Math.max(0, b.hitT - dt / 140); }
-    for (const s of specials) { if (s.dy !== 0) { s.dy += -s.dy * Math.min(1, dt * DESCEND_EASE); if (Math.abs(s.dy) < 0.4) s.dy = 0; } s.phase += dt * 0.004; if (s.type === "spin") s.ang += SPIN_RATE * dt; }
+    for (const s of specials) { if (s.dy !== 0) { s.dy += -s.dy * Math.min(1, dt * DESCEND_EASE); if (Math.abs(s.dy) < 0.4) s.dy = 0; } s.phase += dt * 0.004; }
+    for (const bm of beams) bm.t -= dt;
+    beams = beams.filter(bm => bm.t > 0);
     for (const p of particles) { p.vy += (p.grav || 0) * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.rot += (p.spin || 0) * dt; p.life -= dt; }
     particles = particles.filter(p => p.life > 0);
     for (const f of floaters) { f.y += f.vy * dt; f.life -= dt; }
@@ -598,6 +640,16 @@
 
     ctx.save();
     rr(boardX, boardTop, boardW, boardH, cell * 0.1); ctx.clip();
+    for (const bm of beams) {
+      const a = clamp(bm.t / 300, 0, 1), by = cellY(bm.row) + cell / 2 + bm.dy;
+      const lg = ctx.createLinearGradient(boardX, by, boardX + boardW, by);
+      lg.addColorStop(0, "rgba(70,224,255,0.10)");
+      lg.addColorStop(0.5, "rgba(70,224,255," + (0.5 * a) + ")");
+      lg.addColorStop(1, "rgba(70,224,255,0.10)");
+      ctx.fillStyle = lg; ctx.fillRect(boardX, by - cell * 0.3, boardW, cell * 0.6);
+      ctx.fillStyle = "rgba(225,250,255," + (0.9 * a) + ")";
+      ctx.fillRect(boardX, by - cell * 0.045, boardW, cell * 0.09);
+    }
     for (const b of bricks) drawBrick(b);
     for (const s of specials) drawSpecial(s, now);
 
@@ -752,24 +804,36 @@
 
   function drawSpecial(s, now) {
     const cx = cellX(s.col) + cell / 2, cy = cellY(s.row) + cell / 2 + s.dy;
-    const col = { add5: "#3ddc84", bonus: "#ff8a3d", split: "#4aa8ff", spin: "#ff45a0" }[s.type];
+    const col = { add5: "#3ddc84", bonus: "#ff8a3d", laser: "#46e0ff", scramble: "#b17bff" }[s.type];
     const R = cell * 0.34, pulse = 0.75 + 0.25 * Math.sin(s.phase * 2);
     ctx.save();
     ctx.shadowColor = col; ctx.shadowBlur = cell * 0.3 * pulse;
     ctx.strokeStyle = col; ctx.lineWidth = Math.max(2.5, cell * 0.055); ctx.lineCap = "round";
-    if (s.type === "spin") {
-      ctx.beginPath(); ctx.arc(cx, cy, R, 0.35, Math.PI - 0.35); ctx.stroke();
-      ctx.beginPath(); ctx.arc(cx, cy, R, Math.PI + 0.35, -0.35); ctx.stroke();
+    if (s.type === "laser") {
+      // Solid block that balls bounce off, so it is drawn like a brick.
       ctx.restore();
-      // rotating bar
+      const pad = cell * 0.045, sz = cell - pad * 2;
+      const bx = cellX(s.col) + pad, by = cellY(s.row) + s.dy + pad, lift = sz * 0.10;
       ctx.save();
-      ctx.translate(cx, cy); ctx.rotate(s.ang);
-      ctx.strokeStyle = "#ffe9a8"; ctx.lineWidth = cell * 0.1; ctx.lineCap = "round";
-      ctx.shadowColor = "#fff"; ctx.shadowBlur = cell * 0.18;
-      ctx.beginPath(); ctx.moveTo(-cell * 0.34, 0); ctx.lineTo(cell * 0.34, 0); ctx.stroke();
+      ctx.shadowColor = col; ctx.shadowBlur = cell * 0.22 * pulse;
+      ctx.fillStyle = "#12617f"; rr(bx, by, sz, sz, sz * 0.16); ctx.fill();
+      const g2 = ctx.createLinearGradient(0, by, 0, by + sz - lift);
+      g2.addColorStop(0, "#7ef0ff"); g2.addColorStop(1, "#1f9dc4");
+      ctx.fillStyle = g2; rr(bx, by, sz, sz - lift, sz * 0.16); ctx.fill();
       ctx.restore();
       ctx.save();
-      ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(cx, cy, cell * 0.07, 0, 6.283); ctx.fill();
+      ctx.translate(bx + sz / 2, by + (sz - lift) / 2);
+      ctx.strokeStyle = "#06384c"; ctx.fillStyle = "#06384c";
+      ctx.lineWidth = Math.max(2.5, cell * 0.055); ctx.lineCap = "round";
+      const arm = sz * 0.26;
+      ctx.beginPath(); ctx.moveTo(-arm, 0); ctx.lineTo(arm, 0); ctx.stroke();
+      for (const d of [-1, 1]) {
+        ctx.beginPath();
+        ctx.moveTo(d * arm, 0);
+        ctx.lineTo(d * (arm - sz * 0.13), -sz * 0.11);
+        ctx.lineTo(d * (arm - sz * 0.13), sz * 0.11);
+        ctx.closePath(); ctx.fill();
+      }
       ctx.restore();
       return;
     }
@@ -795,19 +859,20 @@
       ctx.strokeStyle = "#fff"; ctx.lineWidth = cell * 0.05; ctx.lineCap = "round";
       ctx.beginPath(); ctx.moveTo(0, cell * 0.2); ctx.lineTo(0, cell * 0.09); ctx.stroke();
       ctx.beginPath(); ctx.moveTo(-cell * 0.05, cell * 0.13); ctx.lineTo(0, cell * 0.075); ctx.lineTo(cell * 0.05, cell * 0.13); ctx.stroke();
-    } else if (s.type === "split") {
-      ctx.fillStyle = "#fff";
-      ctx.beginPath(); ctx.arc(0, cell * 0.09, cell * 0.1, 0, 6.283); ctx.fill();
-      ctx.strokeStyle = "#fff"; ctx.lineWidth = cell * 0.045; ctx.lineCap = "round";
-      for (const a of [-0.85, 0, 0.85]) {
-        const dx = Math.sin(a), dy = -Math.cos(a);
+    } else if (s.type === "scramble") {
+      // Four arrows flying apart: directions change, ball count does not.
+      ctx.strokeStyle = "#fff"; ctx.fillStyle = "#fff";
+      ctx.lineWidth = cell * 0.045; ctx.lineCap = "round";
+      for (let k = 0; k < 4; k++) {
+        const a = s.phase * 0.35 + k * (Math.PI / 2) + Math.PI / 4;
+        const dx = Math.cos(a), dy = Math.sin(a);
         ctx.beginPath();
-        ctx.moveTo(dx * cell * 0.09, cell * 0.02 + dy * cell * 0.02);
-        ctx.lineTo(dx * cell * 0.24, cell * 0.02 + dy * cell * 0.2);
+        ctx.moveTo(dx * cell * 0.07, dy * cell * 0.07);
+        ctx.lineTo(dx * cell * 0.21, dy * cell * 0.21);
         ctx.stroke();
-        ctx.save(); ctx.translate(dx * cell * 0.24, cell * 0.02 + dy * cell * 0.2); ctx.rotate(a);
-        ctx.beginPath(); ctx.moveTo(-cell * 0.05, cell * 0.05); ctx.lineTo(0, -cell * 0.01); ctx.lineTo(cell * 0.05, cell * 0.05); ctx.stroke();
-        ctx.restore();
+        ctx.save(); ctx.translate(dx * cell * 0.23, dy * cell * 0.23); ctx.rotate(a);
+        ctx.beginPath(); ctx.moveTo(cell * 0.05, 0); ctx.lineTo(-cell * 0.03, cell * 0.05); ctx.lineTo(-cell * 0.03, -cell * 0.05);
+        ctx.closePath(); ctx.fill(); ctx.restore();
       }
     }
     ctx.restore();
@@ -868,7 +933,8 @@
     ctx.font = "900 " + Math.round(cell * 0.28) + "px system-ui, sans-serif";
     const label = "x" + n;
     const tw = ctx.measureText(label).width;
-    const bx = launchX - (tw + cell * 0.44) / 2;
+    const bw2 = tw + cell * 0.44;
+    const bx = clamp(launchX - bw2 / 2, boardX, boardX + boardW - bw2);
     drawBall(bx + cell * 0.16, y, false);
     ctx.fillStyle = "#fff"; ctx.textAlign = "left";
     ctx.fillText(label, bx + cell * 0.36, y + 1);
