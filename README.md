@@ -2,10 +2,9 @@
 
 A custom, mobile-first brick-breaker in the style of **Brick Blast / Ball Breaker**:
 aim, launch a stream of bouncing balls, and clear the numbered bricks before the
-stack marches down to the bottom. You start with a full stream of **60 balls**, and
-it's **level-based** — brick toughness climbs a lot faster than your ball count
-does, so the later levels really bite. **Special power-up blocks** are mixed right
-into the grid.
+stack marches down to the bottom. Every level starts you with the same stream of
+**60 balls**, and brick toughness climbs each level, so the later levels really
+bite. **Special power-up blocks** are mixed right into the grid.
 
 It's a single self-contained HTML file (no build step, no dependencies, no server
 logic) designed to run great on a phone and be hosted for free on GitHub Pages.
@@ -17,8 +16,10 @@ logic) designed to run great on a phone and be hosted for free on GitHub Pages.
   lands is the collection point — every other ball rolls along the floor to it,
   and that becomes your next launch spot.
 - Each ball knocks a brick's number down by 1; the brick shatters at 0.
-- **Clear every brick to beat the level.** Clearing awards +2 balls, then the next
-  level brings more rows, denser packing, and higher-numbered bricks.
+- **Clear every brick to beat the level.** The next level brings more rows, denser
+  packing, and higher-numbered bricks.
+- **Your ball count resets at the start of every level.** Balls you pick up during
+  a level are yours for that level only — they never carry over.
 - After every shot the bricks drop one row. When they reach the bottom row the
   board flashes **red warning triangles** — that's your last turn before game over.
 - The **combo counter** above the board tracks hits for the turn and heats up from
@@ -41,9 +42,9 @@ with a ball and it fires automatically.
 
 | Block | Effect |
 | --- | --- |
-| **+5** (green ring) | Adds 5 balls to your stream — **permanent**, for every turn from now on. |
+| **+5** (green ring) | Adds 5 balls to your stream for the rest of **this level**. |
 | **Ball cluster + arrow** (orange ring) | A big burst of **bonus balls for this turn only**. They fly in pink so you can tell them apart, and they vanish when the turn ends — your permanent count is unchanged. |
-| **Laser** (cyan block) | A solid block balls bounce off. Every ball that connects fires a beam that takes **exactly 1 off every brick in its row**, so it rewards keeping balls pinging into it. |
+| **Laser** (cyan ring) | Balls **pass straight through** it. Every ball that crosses it fires a beam taking **exactly 1 off every brick in its row**, so a dense stream racks up damage fast. It **burns out at the end of the turn it fires on**; an untouched one waits for a later turn. |
 | **Scrambler** (purple ring) | Re-aims every ball in play in a fresh upward direction. It **never adds balls** — it only changes where they are going. |
 
 ## Play locally
@@ -81,13 +82,14 @@ its own icon, just like an installed game.
 Everything lives in `index.html`. A few easy tweaks near the top of the `<script>`:
 
 - `COLS` — how many columns wide the board is (`ROWS` auto-fits the screen).
-- `START_BALLS` — how many balls you begin a run with (default 60).
+- `START_BALLS` — how many balls every level starts with (default 60).
 - `BASE_SPEED_FRAC` — ball speed; the ⏩ button doubles it.
 - `BONUS_BALLS` — how many one-turn bonus balls the orange block gives (default 30).
 - `TOP_GAP` — how many rows are always kept clear above the stack.
 - `levelRows(l)` — how many brick rows each level throws at you.
-- `freshValue()` controls brick toughness per level — this is the main
-  difficulty dial; `brickTier()` sets the colour thresholds.
+- `levelBase()` — the toughest fresh brick for a level. Since the ball count no
+  longer grows run-to-run, this is the main difficulty dial; `brickTier()` keys
+  the brick colours off it.
 - `rollSpecial()` sets which special blocks appear and how often each type comes
   up; the `hasSpecial` chance in `spawnTopRow()` controls how frequently any
   special block shows up at all.

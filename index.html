@@ -91,7 +91,7 @@
         Drag to aim, release to launch. Clear every brick to beat the level.
         Special blocks are mixed into the grid — hit them to set them off:
         <div class="legend">
-          <div><b style="color:#3ddc84">+5</b> permanent balls</div>
+          <div><b style="color:#3ddc84">+5</b> more balls this level</div>
           <div><b style="color:#ff8a3d">⁘↑</b> bonus balls, this turn</div>
           <div><b style="color:#46e0ff">⇔</b> laser: 1 dmg down its row</div>
           <div><b style="color:#b17bff">✳</b> scrambles ball directions</div>
@@ -117,7 +117,7 @@
   const COLS = 7;
   let ROWS = 11;                   // row ROWS-1 is the danger row; past it = game over (fits to screen)
   const BALL_R_FRAC = 0.13;
-  const BASE_SPEED_FRAC = 0.52;
+  const BASE_SPEED_FRAC = 0.39;
   const LAUNCH_GAP = 3;
   const MIN_AIM = 0.22;
   const STEP = 1000 / 60;
@@ -201,7 +201,7 @@
 
   // Brick colour tiers by value relative to the level's ceiling: cyan -> green -> gold -> red
   function brickTier(val) {
-    const r = val / ((12 + level * 11) * 1.15);   // relative to this level's toughest fresh brick
+    const r = val / (levelBase() * 1.15);   // relative to this level's toughest fresh brick
     if (r < 0.32) return { a: "#7fd8ff", b: "#3aa9e6", t: "#0d3f5c" };
     if (r < 0.62) return { a: "#7ff08e", b: "#31c14e", t: "#0b4718" };
     if (r < 0.88) return { a: "#ffd97a", b: "#f0ac25", t: "#5a3a03" };
@@ -223,11 +223,14 @@
 
   // ---------- Level generation ----------
   function levelRows(l) { return Math.min(10 + l * 3, 42); }
+  // Toughest fresh brick this level. Balls reset every level, so this climbs
+  // gently - it is the main difficulty dial.
+  function levelBase() { return 12 + level * 6; }
 
   function freshValue() {
     // Brick toughness climbs much faster than the ball count does, so later
     // levels actually bite instead of melting in one turn.
-    const base = 12 + level * 11;
+    const base = levelBase();
     let v = Math.round(rand(base * 0.55, base * 1.2));
     if (Math.random() < 0.14) v = Math.round(v * 1.8);
     if (level >= 6) v = Math.max(5, Math.round(v / 5) * 5);
@@ -242,7 +245,7 @@
   function rollSpecial() {
     const r = Math.random();
     if (r < 0.38) return { type: "add5" };
-    if (r < 0.66) return { type: "laser", cd: 0 };
+    if (r < 0.66) return { type: "laser", inside: new Set(), triggered: false };
     if (r < 0.86) return { type: "scramble" };
     return { type: "bonus" };
   }
@@ -277,6 +280,7 @@
     bricks = []; specials = []; balls = []; beams = [];
     firing = null; landedX = null; ballsToAdd = 0; returning = false;
     speedMult = 1; updateSpeedBtn(); combo = 0;
+    ballCount = START_BALLS;          // every level starts from the same stream
     ballSpeed = cell * BASE_SPEED_FRAC;
     rowsTotal = levelRows(level); rowsLeft = rowsTotal;
     for (let i = 0; i < 3 && rowsLeft > 0; i++) { descendAll(); spawnTopRow(); rowsLeft--; }
@@ -293,6 +297,9 @@
   function advanceTurn() {
     if (landedX !== null) launchX = landedX;
     ballCount += ballsToAdd; ballsToAdd = 0;
+    // A laser is spent once it has fired; unused ones stay for a later turn.
+    specials = specials.filter(s => !(s.type === "laser" && s.triggered));
+    for (const s of specials) if (s.inside) s.inside.clear();
     firing = null; returning = false;
     speedMult = 1; updateSpeedBtn();
     if (descendAll()) return;
@@ -304,7 +311,7 @@
   }
 
   function levelClear() {
-    score += 100 * level; ballCount += 2;
+    score += 100 * level;
     flourishText = "LEVEL " + level + " CLEAR!"; flourishT = 1700; state = "flourish";
     const hues = ["#ffc93c", "#4aa8ff", "#3ddc84", "#ff8a3d", "#ff45a0", "#ffffff"];
     for (let i = 0; i < 70; i++) particles.push({ x: rand(boardX, boardX + boardW), y: rand(boardTop, boardTop + boardH * 0.4),
@@ -439,27 +446,10 @@
     return true;
   }
 
-  // The laser block is solid: balls bounce off it, and each ball that connects
-  // fires a beam that takes exactly 1 off every brick sharing its row.
-  function collideLaser(ball, s) {
-    const bx = cellX(s.col) + cell * 0.03, by = cellY(s.row) + cell * 0.03 + s.dy;
-    const bw = cell * 0.94, bh = cell * 0.94;
-    const px = clamp(ball.x, bx, bx + bw), py = clamp(ball.y, by, by + bh);
-    const dx = ball.x - px, dy = ball.y - py;
-    if (dx * dx + dy * dy >= ballR * ballR) return false;
-    const ox = ballR - Math.abs(dx), oy = ballR - Math.abs(dy);
-    if (Math.abs(dx) > Math.abs(dy) || (dx !== 0 && ox < oy)) {
-      ball.vx = dx >= 0 ? Math.abs(ball.vx) : -Math.abs(ball.vx);
-      ball.x += (dx >= 0 ? 1 : -1) * (ox + 0.5);
-    } else {
-      ball.vy = dy >= 0 ? Math.abs(ball.vy) : -Math.abs(ball.vy);
-      ball.y += (dy >= 0 ? 1 : -1) * (oy + 0.5);
-    }
-    return true;
-  }
+  // The laser is a pass-through block: balls fly straight through it, and each
+  // ball that crosses it fires one beam. It burns out at the end of the turn.
   function fireLaser(s) {
-    // Exactly one point of damage per ball that connects - the ball is pushed
-    // clear of the block on impact, so a single ball can only fire this once.
+    s.triggered = true;
     beams.push({ row: s.row, dy: s.dy, t: 300 });
     for (const b of bricks) {
       if (b.row !== s.row || b.dead) continue;
@@ -487,9 +477,16 @@
       // specials
       for (let i = specials.length - 1; i >= 0; i--) {
         const sp2 = specials[i];
-        if (sp2.type === "laser") { if (collideLaser(ball, sp2)) fireLaser(sp2); continue; }
         const bx = cellX(sp2.col), by = cellY(sp2.row) + sp2.dy;
-        if (ball.x > bx - ballR && ball.x < bx + cell + ballR && ball.y > by - ballR && ball.y < by + cell + ballR) {
+        const over = ball.x > bx - ballR && ball.x < bx + cell + ballR &&
+                     ball.y > by - ballR && ball.y < by + cell + ballR;
+        if (sp2.type === "laser") {
+          // One shot per pass: fire on entry, re-arm for this ball once it leaves.
+          if (over) { if (!sp2.inside.has(ball)) { sp2.inside.add(ball); fireLaser(sp2); } }
+          else sp2.inside.delete(ball);
+          continue;
+        }
+        if (over) {
           specials.splice(i, 1);
           triggerSpecial(sp2, ball, bx + cell / 2, by + cell / 2);
         }
@@ -807,42 +804,16 @@
     const col = { add5: "#3ddc84", bonus: "#ff8a3d", laser: "#46e0ff", scramble: "#b17bff" }[s.type];
     const R = cell * 0.34, pulse = 0.75 + 0.25 * Math.sin(s.phase * 2);
     ctx.save();
+    if (s.triggered) ctx.globalAlpha = 0.3;   // spent laser, gone after this turn
     ctx.shadowColor = col; ctx.shadowBlur = cell * 0.3 * pulse;
     ctx.strokeStyle = col; ctx.lineWidth = Math.max(2.5, cell * 0.055); ctx.lineCap = "round";
-    if (s.type === "laser") {
-      // Solid block that balls bounce off, so it is drawn like a brick.
-      ctx.restore();
-      const pad = cell * 0.045, sz = cell - pad * 2;
-      const bx = cellX(s.col) + pad, by = cellY(s.row) + s.dy + pad, lift = sz * 0.10;
-      ctx.save();
-      ctx.shadowColor = col; ctx.shadowBlur = cell * 0.22 * pulse;
-      ctx.fillStyle = "#12617f"; rr(bx, by, sz, sz, sz * 0.16); ctx.fill();
-      const g2 = ctx.createLinearGradient(0, by, 0, by + sz - lift);
-      g2.addColorStop(0, "#7ef0ff"); g2.addColorStop(1, "#1f9dc4");
-      ctx.fillStyle = g2; rr(bx, by, sz, sz - lift, sz * 0.16); ctx.fill();
-      ctx.restore();
-      ctx.save();
-      ctx.translate(bx + sz / 2, by + (sz - lift) / 2);
-      ctx.strokeStyle = "#06384c"; ctx.fillStyle = "#06384c";
-      ctx.lineWidth = Math.max(2.5, cell * 0.055); ctx.lineCap = "round";
-      const arm = sz * 0.26;
-      ctx.beginPath(); ctx.moveTo(-arm, 0); ctx.lineTo(arm, 0); ctx.stroke();
-      for (const d of [-1, 1]) {
-        ctx.beginPath();
-        ctx.moveTo(d * arm, 0);
-        ctx.lineTo(d * (arm - sz * 0.13), -sz * 0.11);
-        ctx.lineTo(d * (arm - sz * 0.13), sz * 0.11);
-        ctx.closePath(); ctx.fill();
-      }
-      ctx.restore();
-      return;
-    }
     // broken ring for the consumable specials
     ctx.beginPath(); ctx.arc(cx, cy, R, 0.5, Math.PI - 0.5); ctx.stroke();
     ctx.beginPath(); ctx.arc(cx, cy, R, Math.PI + 0.5, -0.5); ctx.stroke();
     ctx.restore();
 
     ctx.save(); ctx.translate(cx, cy);
+    if (s.triggered) ctx.globalAlpha = 0.3;
     ctx.fillStyle = "#fff"; ctx.strokeStyle = "#fff";
     ctx.textAlign = "center"; ctx.textBaseline = "middle";
     if (s.type === "add5") {
@@ -859,6 +830,18 @@
       ctx.strokeStyle = "#fff"; ctx.lineWidth = cell * 0.05; ctx.lineCap = "round";
       ctx.beginPath(); ctx.moveTo(0, cell * 0.2); ctx.lineTo(0, cell * 0.09); ctx.stroke();
       ctx.beginPath(); ctx.moveTo(-cell * 0.05, cell * 0.13); ctx.lineTo(0, cell * 0.075); ctx.lineTo(cell * 0.05, cell * 0.13); ctx.stroke();
+    } else if (s.type === "laser") {
+      ctx.strokeStyle = "#fff"; ctx.fillStyle = "#fff";
+      ctx.lineWidth = Math.max(2.5, cell * 0.05); ctx.lineCap = "round";
+      const arm = cell * 0.2;
+      ctx.beginPath(); ctx.moveTo(-arm, 0); ctx.lineTo(arm, 0); ctx.stroke();
+      for (const d of [-1, 1]) {
+        ctx.beginPath();
+        ctx.moveTo(d * (arm + cell * 0.03), 0);
+        ctx.lineTo(d * (arm - cell * 0.07), -cell * 0.075);
+        ctx.lineTo(d * (arm - cell * 0.07), cell * 0.075);
+        ctx.closePath(); ctx.fill();
+      }
     } else if (s.type === "scramble") {
       // Four arrows flying apart: directions change, ball count does not.
       ctx.strokeStyle = "#fff"; ctx.fillStyle = "#fff";
@@ -954,7 +937,7 @@
     g.addColorStop(0, "#fff3b0"); g.addColorStop(0.5, "#ffb02e"); g.addColorStop(1, "#ff7a00");
     ctx.fillStyle = g; ctx.fillText(flourishText, 0, 0);
     ctx.fillStyle = "#fff"; ctx.font = "700 " + Math.round(W * 0.042) + "px system-ui, sans-serif";
-    ctx.fillText("+2 balls  ·  get ready", 0, W * 0.085);
+    ctx.fillText("get ready", 0, W * 0.085);
     ctx.restore();
   }
 
