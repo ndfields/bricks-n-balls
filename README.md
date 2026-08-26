@@ -47,6 +47,25 @@ with a ball and it fires automatically.
 | **Laser** (cyan ring) | Balls **pass straight through** it. Every ball that crosses it fires a beam taking **exactly 1 off every brick in its row**, so a dense stream racks up damage fast. It **burns out at the end of the turn it fires on**; an untouched one waits for a later turn. |
 | **Scrambler** (purple ring) | Re-aims every ball in play in a fresh upward direction. It **never adds balls** — it only changes where they are going. |
 
+## Haptics
+
+The game buzzes on launch, power-ups, laser shots, combo milestones, the
+last-turn danger warning, level clear and game over, via the standard
+[Vibration API](https://developer.mozilla.org/en-US/docs/Web/API/Navigator/vibrate).
+
+**This works on Android and does nothing on iPhone.** WebKit has never shipped
+the Vibration API, so `navigator.vibrate` is simply absent in every iOS browser.
+The game checks for it and silently skips the buzz — nothing errors, nothing
+changes about how it plays.
+
+The old workaround (toggling a hidden `<input type="checkbox" switch>`, which
+made iOS play a system tick) worked on iOS 17.4-26.4 but Apple patched it in
+**iOS 26.5**: only a *direct finger tap* on a real, natively-styled switch fires
+a haptic now, and script can't trigger one at all. That rules out the haptics
+this game would actually want — brick hits, lasers, level clear — since those
+are all script-driven. Set `bnb_haptics` to `"0"` in localStorage to turn the
+buzzing off.
+
 ## Play locally
 
 Just open `index.html` in any browser. On a computer you can also run a tiny
