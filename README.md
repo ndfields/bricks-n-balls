@@ -3,8 +3,13 @@
 A custom, mobile-first brick-breaker in the style of **Brick Blast / Ball Breaker**:
 aim, launch a stream of bouncing balls, and clear the numbered bricks before the
 stack marches down to the bottom. Every level starts you with the same stream of
-**60 balls**, and brick toughness climbs each level, so the later levels really
-bite. **Special power-up blocks** are mixed right into the grid.
+**60 balls**, and brick toughness climbs each level. **Special power-up blocks**
+are mixed right into the grid.
+
+It's a **progression**, not a high-score run: every level is a fixed, hand-
+repeatable puzzle that is identical every single time you play it. Clear it and
+you move on; lose it and you retry *that same level*, not the whole game. Your
+place is saved on the device, so closing the tab picks up where you left off.
 
 It's a single self-contained HTML file (no build step, no dependencies, no server
 logic) designed to run great on a phone and be hosted for free on GitHub Pages.
@@ -29,7 +34,11 @@ logic) designed to run great on a phone and be hosted for free on GitHub Pages.
 - The **combo counter** above the board tracks hits for the turn and heats up from
   blue to pink to flaming red, with a **Super Combo!** banner at big streaks.
 - Tap **⏩** to fast-forward, or **Return** to call all your balls home early.
-- Your best level is saved on the device.
+- **Levels are fixed.** Level 7 is always the exact same board, so a level you
+  keep losing is one you can learn and plan around.
+- **Losing costs you the level, not the run.** You restart that level with a
+  fresh 60 balls; you never get sent back to Level 1. (There's a *Start over
+  from Level 1* link on the title screen if you ever want a clean slate.)
 
 ## Blocks
 
@@ -112,12 +121,17 @@ Everything lives in `index.html`. A few easy tweaks near the top of the `<script
 - `GRID_SCALE` — shrinks the cells to fit more rows on screen (more play area).
 - `MIN_AIM` — how flat a shot you can line up, in radians above horizontal.
 - `levelRows(l)` — how many brick rows each level throws at you.
-- `levelBase()` — the toughest fresh brick for a level. Since the ball count no
-  longer grows run-to-run, this is the main difficulty dial; `brickTier()` keys
-  the brick colours off it.
-- `rollSpecial()` sets which special blocks appear and how often each type comes
-  up; the `hasSpecial` chance in `spawnTopRow()` controls how frequently any
-  special block shows up at all.
+- `levelBase(l)` — the toughest fresh brick for a level. Since the ball count is
+  the same every level, this is the main difficulty dial; `brickTier()` keys the
+  brick colours off it.
+- `buildLevel(l)` generates a whole level from a seed made only from its number
+  — brick values, triangles, which columns fill, and which special blocks appear
+  and where. Change anything in here and **every level changes**, including ones
+  already beaten. The `density` line controls how packed each row is, and the
+  `hasSpecial` chance controls how often a special block shows up.
+
+Progress lives in `localStorage` under `bnb_level` (the level to play next) and
+`bnb_bestlvl` (the furthest reached).
 
 You can also change the title and the "Made with 💛" line in the HTML, or swap the
 colours by editing the `--bg1` / `--bg2` / `--accent` values in the `:root` CSS.
