@@ -20,8 +20,12 @@ logic) designed to run great on a phone and be hosted for free on GitHub Pages.
   packing, and higher-numbered bricks.
 - **Your ball count resets at the start of every level.** Balls you pick up during
   a level are yours for that level only — they never carry over.
-- After every shot the bricks drop one row. When they reach the bottom row the
-  board flashes **red warning triangles** — that's your last turn before game over.
+- **Drag far out to the side** for a flat, low shot along the wall — the aim goes
+  down to about 5° above horizontal.
+- After every shot the bricks drop one row. The bottom row is a **kill line**,
+  marked with warning triangles: a brick reaching it ends the run immediately.
+  When bricks are one row above it the whole board goes to a red alarm — that's
+  your last turn to clear them.
 - The **combo counter** above the board tracks hits for the turn and heats up from
   blue to pink to flaming red, with a **Super Combo!** banner at big streaks.
 - Tap **⏩** to fast-forward, or **Return** to call all your balls home early.
@@ -105,6 +109,8 @@ Everything lives in `index.html`. A few easy tweaks near the top of the `<script
 - `BASE_SPEED_FRAC` — ball speed; the ⏩ button doubles it.
 - `BONUS_BALLS` — how many one-turn bonus balls the orange block gives (default 30).
 - `TOP_GAP` — how many rows are always kept clear above the stack.
+- `GRID_SCALE` — shrinks the cells to fit more rows on screen (more play area).
+- `MIN_AIM` — how flat a shot you can line up, in radians above horizontal.
 - `levelRows(l)` — how many brick rows each level throws at you.
 - `levelBase()` — the toughest fresh brick for a level. Since the ball count no
   longer grows run-to-run, this is the main difficulty dial; `brickTier()` keys
