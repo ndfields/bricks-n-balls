@@ -22,10 +22,10 @@ logic) designed to run great on a phone and be hosted for free on GitHub Pages.
   a level are yours for that level only — they never carry over.
 - **Drag far out to the side** for a flat, low shot along the wall — the aim goes
   down to about 5° above horizontal.
-- After every shot the bricks drop one row. The bottom row is a **kill line**,
-  marked with warning triangles: a brick reaching it ends the run immediately.
-  When bricks are one row above it the whole board goes to a red alarm — that's
-  your last turn to clear them.
+- After every shot the bricks drop one row. The bottom row is a **kill line**: a
+  brick reaching it ends the run immediately. The board stays clean until bricks
+  are one row above it, and then the kill row lights up with flashing warning
+  triangles and a red border — that's your last turn to clear them.
 - The **combo counter** above the board tracks hits for the turn and heats up from
   blue to pink to flaming red, with a **Super Combo!** banner at big streaks.
 - Tap **⏩** to fast-forward, or **Return** to call all your balls home early.
