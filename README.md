@@ -60,6 +60,20 @@ with a ball and it fires automatically.
 | **Laser** (cyan ring) | Balls **pass straight through** it. Every ball that crosses it fires a beam taking **exactly 1 off every brick in its row**, so a dense stream racks up damage fast. It **burns out at the end of the turn it fires on**; an untouched one waits for a later turn. |
 | **Scrambler** (purple ring) | Re-aims every ball in play in a fresh upward direction. It **never adds balls** — it only changes where they are going. |
 
+## Bonus turns
+
+Some levels hand you a **bonus turn**. When it fires you get a huge one-off
+stream of extra balls (they launch in pink behind your normal gold ones), and
+the price is that the board is **pushed down three rows** at once.
+
+- Whether a level offers one at all is fixed per level, like the board itself —
+  roughly 60% of levels have one, and it can only fire **once per level**.
+- It waits for a safe moment. It only triggers when the stack is high enough
+  that dropping three rows cannot put a brick on, or even next to, the kill
+  line, so a bonus turn can never be what loses you the level.
+- The extra balls scale with the level and last **that turn only** — afterwards
+  you are back to exactly the ball count you had before.
+
 ## Haptics
 
 The game buzzes on launch, power-ups, laser shots, combo milestones, the
@@ -113,8 +127,11 @@ its own icon, just like an installed game.
 
 Everything lives in `index.html`. A few easy tweaks near the top of the `<script>`:
 
-- `COLS` — how many columns wide the board is (`ROWS` auto-fits the screen).
+- `COLS` is the board width in columns; `ROWS` auto-fits the screen height.
 - `START_BALLS` — how many balls every level starts with (default 60).
+- `BONUS_TURN_CHANCE` / `BONUS_TURN_DROP` — how often a level offers a bonus
+  turn and how many rows it costs; `bonusTurnBalls(l)` sets how many extra balls
+  it hands you at a given level.
 - `BASE_SPEED_FRAC` — ball speed; the ⏩ button doubles it.
 - `BONUS_BALLS` — how many one-turn bonus balls the orange block gives (default 30).
 - `TOP_GAP` — how many rows are always kept clear above the stack.
