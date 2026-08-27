@@ -137,6 +137,11 @@
   const FLIGHT_LIMIT = 1800;       // physics ticks before balls auto-return
   const BONUS_TURN_CHANCE = 0.6;   // odds a given level offers a bonus turn at all
   const BONUS_TURN_DROP = 3;       // rows the board is pushed down to pay for it
+  // Cheeky little pop-ups for a big clear-out. First one needs MSG_FIRST bricks
+  // in a turn, then every MSG_STEP after that, capped at MSG_MAX per turn.
+  const MESSAGES = ["That's hot!", "Sexy!", "Tap those balls!", "Nice stroke!",
+                    "Big finish!", "Filthy!", "Show off!", "Get it, girl!"];
+  const MSG_FIRST = 6, MSG_STEP = 9, MSG_MAX = 3;
 
   // ---------- Haptics ----------
   // Standards-based only (navigator.vibrate). Fully supported on Android; iOS
@@ -181,6 +186,8 @@
   let firing = null, landedX = null, ballsToAdd = 0;
   let speedMult = 1, returning = false;
   let combo = 0, comboBannerT = 0, comboBannerText = "";
+  let destroyedThisTurn = 0, nextMsgAt = 0, msgsThisTurn = 0;
+  let msgText = "", msgT = 0, lastMsg = -1;
   let shake = { t: 0, mag: 0 };
   let flourishT = 0, flourishText = "";
   let physAcc = 0, lastT = 0;
@@ -450,6 +457,7 @@
     buzz(12);
     firing = { dir, toFire: ballCount + bonusAmount, fired: 0, timer: 0, normal: ballCount };
     landedX = null; ballsToAdd = 0; combo = 0; returning = false; flightTicks = 0;
+    destroyedThisTurn = 0; nextMsgAt = MSG_FIRST; msgsThisTurn = 0;
     state = "firing"; syncButtons();
   }
   function stepFiring() {
@@ -467,8 +475,20 @@
     const tier = brickTier(b.max);
     if (b.val <= 0) {
       b.dead = true; score += b.max;
+      if (++destroyedThisTurn >= nextMsgAt && msgsThisTurn < MSG_MAX) {
+        nextMsgAt = destroyedThisTurn + MSG_STEP; msgsThisTurn++;
+        popMessage();
+      }
     }
     if (combo === 250 || combo === 750) { buzz([0, 20, 50, 30]); comboBannerText = combo >= 750 ? "MEGA COMBO!" : "Super Combo!"; comboBannerT = 1300; addShake(6); }
+  }
+
+  function popMessage() {
+    let i = Math.floor(Math.random() * MESSAGES.length);
+    if (MESSAGES.length > 1 && i === lastMsg) i = (i + 1) % MESSAGES.length;
+    lastMsg = i;
+    msgText = MESSAGES[i]; msgT = 1250;
+    buzz(16, 200);
   }
 
   function triggerSpecial(s, ball, x, y) {
@@ -715,6 +735,7 @@
   function update(dt) {
     if (shake.t > 0) shake.t -= dt;
     if (comboBannerT > 0) comboBannerT -= dt;
+    if (msgT > 0) msgT -= dt;
     if (bonusBannerT > 0) bonusBannerT -= dt;
     for (const b of bricks) { if (b.dy !== 0) { b.dy += -b.dy * Math.min(1, dt * DESCEND_EASE); if (Math.abs(b.dy) < 0.4) b.dy = 0; } if (b.hitT > 0) b.hitT = Math.max(0, b.hitT - dt / 140); }
     for (const s of specials) { if (s.dy !== 0) { s.dy += -s.dy * Math.min(1, dt * DESCEND_EASE); if (Math.abs(s.dy) < 0.4) s.dy = 0; } s.phase += dt * 0.004; }
@@ -802,6 +823,7 @@
     ctx.restore();
 
     drawLauncher();
+    if (msgT > 0) drawMessage();
     if (bonusBannerT > 0) drawBonusBanner();
     if (state === "flourish") drawFlourish();
   }
@@ -1067,6 +1089,26 @@
     drawBall(bx + cell * 0.16, y, false);
     ctx.fillStyle = "#fff"; ctx.textAlign = "left";
     ctx.fillText(label, bx + cell * 0.36, y + 1);
+  }
+
+  function drawMessage() {
+    const t = 1 - msgT / 1250;
+    const pop = Math.min(1, t * 6);
+    const size = W * 0.075;
+    ctx.save();
+    ctx.globalAlpha = clamp(msgT / 420, 0, 1);
+    // sits between the combo counter and the bonus banner so nothing overlaps
+    ctx.translate(W / 2, boardTop + boardH * 0.52 - t * cell * 0.5);
+    ctx.scale(0.7 + pop * 0.35, 0.7 + pop * 0.35);
+    ctx.rotate(-0.05 + Math.sin(t * 7) * 0.02);
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.font = "900 italic " + Math.round(size) + "px system-ui, sans-serif";
+    ctx.lineWidth = size * 0.26; ctx.strokeStyle = "#4a1030"; ctx.lineJoin = "round";
+    ctx.strokeText(msgText, 0, 0);
+    const g = ctx.createLinearGradient(0, -size * 0.6, 0, size * 0.6);
+    g.addColorStop(0, "#fff2fb"); g.addColorStop(0.5, "#ff86d0"); g.addColorStop(1, "#ff3fa4");
+    ctx.fillStyle = g; ctx.fillText(msgText, 0, 0);
+    ctx.restore();
   }
 
   function drawBonusBanner() {

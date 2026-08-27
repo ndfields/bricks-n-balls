@@ -60,6 +60,14 @@ with a ball and it fires automatically.
 | **Laser** (cyan ring) | Balls **pass straight through** it. Every ball that crosses it fires a beam taking **exactly 1 off every brick in its row**, so a dense stream racks up damage fast. It **burns out at the end of the turn it fires on**; an untouched one waits for a later turn. |
 | **Scrambler** (purple ring) | Re-aims every ball in play in a fresh upward direction. It **never adds balls** — it only changes where they are going. |
 
+## Cheers from the sidelines
+
+Clear a pile of bricks in one turn and the game pipes up with a random cheeky
+one-liner. The first fires at 6 bricks destroyed in a turn, then every 9 after
+that, capped at 3 per turn so it never turns into a wall of text. The lines live
+in the `MESSAGES` array at the top of the script — add, cut or rewrite them
+freely, it's just a list of strings.
+
 ## Bonus turns
 
 Some levels hand you a **bonus turn**. When it fires you get a huge one-off
