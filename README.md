@@ -148,7 +148,10 @@ Everything lives in `index.html`. A few easy tweaks near the top of the `<script
 - `levelRows(l)` — how many brick rows each level throws at you.
 - `levelBase(l)` — the toughest fresh brick for a level. Since the ball count is
   the same every level, this is the main difficulty dial; `brickTier()` keys the
-  brick colours off it.
+  brick colours off it. Later levels get harder mainly through **brick toughness**
+  rather than packing more bricks in: the `density` line creeps up slowly and is
+  capped at `COLS - 2`, so at least two columns of every row are always open and
+  a row can never become a solid wall.
 - `buildLevel(l)` generates a whole level from a seed made only from its number
   — brick values, triangles, which columns fill, and which special blocks appear
   and where. Change anything in here and **every level changes**, including ones
