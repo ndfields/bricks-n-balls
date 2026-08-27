@@ -48,7 +48,7 @@ at 45° — great for banking shots into awkward corners.
 
 There is always at least one **empty row above the stack**, so you can always break
 through into open space along the top. The stack's top row itself may be completely
-closed off across all seven columns.
+closed off across every column.
 
 **Special blocks** are mixed into the grid. There are no buttons to press: hit one
 with a ball and it fires automatically.
