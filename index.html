@@ -62,6 +62,11 @@
   .linkbtn { margin-top: 14px; background: none; border: none; color: var(--muted);
              font-size: 13px; text-decoration: underline; cursor: pointer; display: none; }
   .linkbtn.show { display: inline-block; }
+  .btnrow { display: flex; gap: 12px; margin-top: 22px; flex-wrap: wrap; justify-content: center; }
+  .btnrow button.play { margin-top: 0; font-size: clamp(15px, 4.2vw, 19px); padding: 15px 30px; }
+  button.play.danger { background: #ff5a5a; color: #fff; }
+  button.play.ghost { background: rgba(255,255,255,.16); color: #fff; }
+  #confirmScreen { z-index: 11; }
 
   .btmbar { position: absolute; left: 0; right: 0; bottom: 10px; display: flex;
             justify-content: space-between; align-items: center; padding: 0 14px; z-index: 5; pointer-events: none; }
@@ -91,7 +96,7 @@
       <p>Made with 💛</p>
       <div class="big-score" id="startLevel">Level 1</div>
       <button id="startBtn" class="play">Play</button>
-      <button id="restartBtn" class="linkbtn">Start over from Level 1</button>
+      <button id="resetBtn" class="linkbtn">Reset progress</button>
       <div class="hint">
         Drag to aim, release to launch. Clear every brick to beat the level.
         Special blocks are mixed into the grid — hit them to set them off:
@@ -101,6 +106,16 @@
           <div><b style="color:#46e0ff">⇔</b> laser: 1 dmg down its row</div>
           <div><b style="color:#b17bff">✳</b> scrambles ball directions</div>
         </div>
+      </div>
+    </div>
+
+    <div id="confirmScreen" class="overlay">
+      <h1>Reset progress?</h1>
+      <p style="max-width:330px">This wipes your saved level and your furthest level, and
+      puts you back to Level 1. It can't be undone.</p>
+      <div class="btnrow">
+        <button id="confirmNo" class="play ghost">No, keep it</button>
+        <button id="confirmYes" class="play danger">Yes, reset</button>
       </div>
     </div>
 
@@ -723,15 +738,28 @@
   }
   const startScreenEl = document.getElementById("startScreen");
   const startLevelEl = document.getElementById("startLevel");
-  const restartBtn = document.getElementById("restartBtn");
+  const resetBtn = document.getElementById("resetBtn");
+  const confirmScreenEl = document.getElementById("confirmScreen");
   function refreshStartScreen() {
     startLevelEl.textContent = "Level " + level;
     document.getElementById("startBtn").textContent = level > 1 ? "Continue" : "Play";
-    restartBtn.classList.toggle("show", level > 1);
+    // nothing worth wiping on a brand new save
+    resetBtn.classList.toggle("show", level > 1 || bestLevel > 1);
   }
   refreshStartScreen();
   document.getElementById("startBtn").addEventListener("click", () => { startScreenEl.classList.remove("show"); startFrom(level); });
-  restartBtn.addEventListener("click", () => { startScreenEl.classList.remove("show"); startFrom(1); });
+
+  resetBtn.addEventListener("click", () => { confirmScreenEl.classList.add("show"); });
+  document.getElementById("confirmNo").addEventListener("click", () => { confirmScreenEl.classList.remove("show"); });
+  document.getElementById("confirmYes").addEventListener("click", () => {
+    try {
+      localStorage.removeItem("bnb_level");
+      localStorage.removeItem("bnb_bestlvl");   // haptics preference is deliberately kept
+    } catch (e) {}
+    level = 1; bestLevel = 1; score = 0; scoreAtLevelStart = 0;
+    confirmScreenEl.classList.remove("show");
+    refreshStartScreen();
+  });
   document.getElementById("againBtn").addEventListener("click", () => { document.getElementById("overScreen").classList.remove("show"); retryLevel(); });
 
   // ---------- Update ----------

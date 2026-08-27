@@ -37,8 +37,10 @@ logic) designed to run great on a phone and be hosted for free on GitHub Pages.
 - **Levels are fixed.** Level 7 is always the exact same board, so a level you
   keep losing is one you can learn and plan around.
 - **Losing costs you the level, not the run.** You restart that level with a
-  fresh 60 balls; you never get sent back to Level 1. (There's a *Start over
-  from Level 1* link on the title screen if you ever want a clean slate.)
+  fresh 60 balls; you never get sent back to Level 1.
+- A **Reset progress** button on the title screen wipes your saved level and
+  furthest level and puts you back to Level 1. It asks for a yes/no confirmation
+  first, and only appears once there's actually progress to wipe.
 
 ## Blocks
 
