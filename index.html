@@ -152,6 +152,7 @@
   const FLIGHT_LIMIT = 1800;       // physics ticks before balls auto-return
   const BONUS_TURN_CHANCE = 0.6;   // odds a given level offers a bonus turn at all
   const BONUS_TURN_DROP = 3;       // rows the board is pushed down to pay for it
+  const BONUS_TURN_MIN_TURN = 3;   // never inside the level's first this-many turns
   // Cheeky little pop-ups for a big clear-out. First one needs MSG_FIRST bricks
   // in a turn, then every MSG_STEP after that, capped at MSG_MAX per turn.
   const MESSAGES = ["That's hot!", "Sexy!", "Tap those balls!", "Nice stroke!",
@@ -196,6 +197,7 @@
   let rowsLeft = 0, rowsTotal = 0;
   let levelPlan = [], planIndex = 0, scoreAtLevelStart = 0;
   let bonusAvailable = false, bonusUsed = false, bonusActive = false, bonusAmount = 0, bonusBannerT = 0;
+  let turnsThisLevel = 0;
   let ballCount = START_BALLS, launchX = 0;
   let aim = null, pointerDown = false;
   let firing = null, landedX = null, ballsToAdd = 0;
@@ -377,6 +379,7 @@
     ballCount = START_BALLS;          // every level starts from the same stream
     ballSpeed = cell * BASE_SPEED_FRAC;
     wasInDanger = false;
+    turnsThisLevel = 0;
     bonusAvailable = levelHasBonus(l); bonusUsed = false; bonusActive = false;
     bonusAmount = 0; bonusBannerT = 0;
     scoreAtLevelStart = score;
@@ -403,11 +406,13 @@
     startLevel(l);
   }
 
-  // Fires at most once a level, and only when the stack sits high enough that
+  // Fires at most once a level, never inside its first BONUS_TURN_MIN_TURN
+  // turns, and only when the stack sits high enough that
   // dropping BONUS_TURN_DROP rows cannot put a brick on - or even next to - the
   // kill line. Costs three of the level's rows, pays a big one-turn stream.
   function maybeStartBonusTurn() {
     if (!bonusAvailable || bonusUsed || bonusActive) return;
+    if (turnsThisLevel < BONUS_TURN_MIN_TURN) return;   // let the level get going first
     if (rowsLeft < BONUS_TURN_DROP) return;
     let maxRow = -1;
     for (const b of bricks) if (b.row > maxRow) maxRow = b.row;
@@ -473,6 +478,7 @@
   // ---------- Firing ----------
   function startFiring(dir) {
     buzz(12);
+    turnsThisLevel++;
     firing = { dir, toFire: ballCount + bonusAmount, fired: 0, timer: 0, normal: ballCount };
     landedX = null; ballsToAdd = 0; combo = 0; returning = false; flightTicks = 0;
     destroyedThisTurn = 0; nextMsgAt = MSG_FIRST; msgsThisTurn = 0;

@@ -78,6 +78,8 @@ the price is that the board is **pushed down three rows** at once.
 
 - Whether a level offers one at all is fixed per level, like the board itself —
   roughly 60% of levels have one, and it can only fire **once per level**.
+- It never lands in a level's **first three turns**, so a level always gets going
+  under its own steam before the board takes the three-row drop.
 - It waits for a safe moment. It only triggers when the stack is high enough
   that dropping three rows cannot put a brick on, or even next to, the kill
   line, so a bonus turn can never be what loses you the level.
@@ -139,9 +141,10 @@ Everything lives in `index.html`. A few easy tweaks near the top of the `<script
 
 - `COLS` is the board width in columns; `ROWS` auto-fits the screen height.
 - `START_BALLS` — how many balls every level starts with (default 60).
-- `BONUS_TURN_CHANCE` / `BONUS_TURN_DROP` — how often a level offers a bonus
-  turn and how many rows it costs; `bonusTurnBalls(l)` sets how many extra balls
-  it hands you at a given level.
+- `BONUS_TURN_CHANCE` / `BONUS_TURN_DROP` / `BONUS_TURN_MIN_TURN` — how often a
+  level offers a bonus turn, how many rows it costs, and the earliest turn it may
+  land on; `bonusTurnBalls(l)` sets how many extra balls it hands you at a given
+  level.
 - `BASE_SPEED_FRAC` — ball speed; the ⏩ button doubles it.
 - `BONUS_BALLS` — how many one-turn bonus balls the orange block gives (default 30).
 - `TOP_GAP` — how many rows are always kept clear above the stack.
