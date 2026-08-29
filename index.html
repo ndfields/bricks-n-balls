@@ -153,6 +153,7 @@
   const BONUS_TURN_CHANCE = 0.6;   // odds a given level offers a bonus turn at all
   const BONUS_TURN_DROP = 3;       // rows the board is pushed down to pay for it
   const BONUS_TURN_MIN_TURN = 3;   // never inside the level's first this-many turns
+  const RING_REARM = 0.45;         // a new hit ring starts once the last is this far along
   // Cheeky little pop-ups for a big clear-out. First one needs MSG_FIRST bricks
   // in a turn, then every MSG_STEP after that, capped at MSG_MAX per turn.
   const MESSAGES = ["That's hot!", "Sexy!", "Tap those balls!", "Nice stroke!",
@@ -184,7 +185,7 @@
   let ballR = 0, ballSpeed = 0, headerH = 0;
 
   // Entities
-  let bricks = [];    // {col,row,val,max,dy,hitT,shape,ori}
+  let bricks = [];    // {col,row,val,max,dy,hitT,hotT,shape,ori}
   let specials = [];  // {type,col,row,dy,phase,ang}
   let balls = [];
   let particles = [];
@@ -374,7 +375,7 @@
     for (const c of row) {
       if (c.kind === "brick") {
         bricks.push({ col: c.col, row: TOP_GAP, val: c.val, max: c.val,
-                      dy: -cell * (TOP_GAP + 1), hitT: 0, shape: c.shape, ori: c.ori });
+                      dy: -cell * (TOP_GAP + 1), hitT: 0, hotT: 0, shape: c.shape, ori: c.ori });
       } else {
         const sp = { type: c.type, col: c.col, row: TOP_GAP, dy: -cell * (TOP_GAP + 1), phase: c.phase };
         if (c.type === "laser") { sp.inside = new Set(); sp.triggered = false; }
@@ -519,7 +520,9 @@
   function mkBall(x, y, vx, vy, bonus) { return { x, y, vx, vy, trail: [], bonus: !!bonus }; }
 
   function damageBrick(b, dmg, hx, hy) {
-    b.val -= dmg; b.hitT = 1; combo++;
+    b.val -= dmg; combo++;
+    b.hotT = 1;                             // per-hit brightness, always resets
+    if (b.hitT <= RING_REARM) b.hitT = 1;   // ring restarts only once it has travelled
     const tier = brickTier(b.max);
     if (b.val <= 0) {
       b.dead = true; score += b.max;
@@ -798,7 +801,8 @@
     if (comboBannerT > 0) comboBannerT -= dt;
     if (msgT > 0) msgT -= dt;
     if (bonusBannerT > 0) bonusBannerT -= dt;
-    for (const b of bricks) { if (b.dy !== 0) { b.dy += -b.dy * Math.min(1, dt * DESCEND_EASE); if (Math.abs(b.dy) < 0.4) b.dy = 0; } if (b.hitT > 0) b.hitT = Math.max(0, b.hitT - dt / 190); }
+    for (const b of bricks) { if (b.dy !== 0) { b.dy += -b.dy * Math.min(1, dt * DESCEND_EASE); if (Math.abs(b.dy) < 0.4) b.dy = 0; } if (b.hitT > 0) b.hitT = Math.max(0, b.hitT - dt / 190);
+      if (b.hotT > 0) b.hotT = Math.max(0, b.hotT - dt / 110); }
     for (const s of specials) { if (s.dy !== 0) { s.dy += -s.dy * Math.min(1, dt * DESCEND_EASE); if (Math.abs(s.dy) < 0.4) s.dy = 0; } s.phase += dt * 0.004; }
     for (const bm of beams) bm.t -= dt;
     beams = beams.filter(bm => bm.t > 0);
@@ -992,8 +996,11 @@
   // 3D bevelled brick
   function drawBrick(b) {
     const t = brickTier(b.val);
-    const pad = cell * 0.045, s = cell - pad * 2;
-    const x = cellX(b.col) + pad, y = cellY(b.row) + b.dy + pad;
+    const pad = cell * 0.045;
+    const pop = 1 + b.hotT * 0.07;              // a nudge of scale on every single hit
+    const s = (cell - pad * 2) * pop;
+    const x = cellX(b.col) + cell / 2 - s / 2;
+    const y = cellY(b.row) + b.dy + cell / 2 - s / 2;
     const lift = s * 0.10, r = s * 0.16;
     ctx.save();
     if (b.shape === "tri") { const v = triVerts(b); ctx.beginPath(); ctx.moveTo(v[0][0], v[0][1]); ctx.lineTo(v[1][0], v[1][1]); ctx.lineTo(v[2][0], v[2][1]); ctx.closePath(); ctx.clip(); }
@@ -1007,6 +1014,10 @@
     ctx.globalAlpha = 0.5; ctx.fillStyle = "rgba(255,255,255,0.55)";
     rr(x + s * 0.12, y + s * 0.08, s * 0.76, s * 0.14, s * 0.07); ctx.fill();
     ctx.globalAlpha = 1;
+    if (b.hotT > 0) {                           // brightens on every hit, ring or not
+      ctx.fillStyle = "rgba(255,255,255," + (b.hotT * 0.4) + ")";
+      rr(x, y, s, s, r); ctx.fill();
+    }
     ctx.restore();
     if (b.hitT > 0) {
       // A ring that snaps outward from the brick edge and fades as it goes.
