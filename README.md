@@ -45,7 +45,9 @@ logic) designed to run great on a phone and be hosted for free on GitHub Pages.
 ## Blocks
 
 **Numbered bricks** are colour-coded by how tough they are, from cyan (easy) to
-green, gold, and red (hardest). Some are **triangle wedges** that bounce balls off
+green, gold, and red (hardest). Every hit snaps a bright ring outward from the
+brick's edge that thins and fades as it goes, so you can see exactly what is
+getting chewed on in a busy stream. Some are **triangle wedges** that bounce balls off
 at 45° — great for banking shots into awkward corners.
 
 There is always at least one **empty row above the stack**, so you can always break
