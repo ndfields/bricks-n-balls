@@ -310,10 +310,25 @@
       const hasSpecial = rng() < 0.5;
       const specCols = hasSpecial ? cols.slice(0, 1) : [];
       const pool = hasSpecial ? cols.slice(1) : cols;
-      // Density creeps up slowly and always leaves at least two open columns,
-      // so a row can never become a solid wall with no way through. Difficulty
-      // comes from brick toughness (levelBase) instead.
-      const density = clamp(3 + Math.floor(l / 5) + Math.floor(rng() * 2), 3, Math.min(COLS - 2, pool.length));
+      // How many bricks a row gets is drawn from an explicit weight table over
+      // 2..6 blocks. Low levels lean thin, high levels lean fuller, but a packed
+      // row stays a minority at every level - the board should never read as a
+      // uniform wall. At most COLS-2 columns are ever filled.
+      const maxD = Math.min(COLS - 2, pool.length);
+      const t = clamp((l - 1) / 24, 0, 1);
+      const lerp = (a, bb) => a + (bb - a) * t;
+      const weights = [lerp(0.20, 0.10),    // 2 blocks
+                       lerp(0.24, 0.15),    // 3
+                       lerp(0.26, 0.22),    // 4
+                       lerp(0.19, 0.26),    // 5
+                       lerp(0.11, 0.27)];   // 6
+      let pickR = rng() * weights.reduce((a, bb) => a + bb, 0);
+      let density = 2;
+      for (let k = 0; k < weights.length; k++) {
+        pickR -= weights[k];
+        if (pickR <= 0) { density = 2 + k; break; }
+      }
+      density = clamp(density, 2, maxD);
       const row = [];
       for (const c of pool.slice(0, density)) {
         let v = Math.round(R(base * 0.55, base * 1.2));
@@ -322,6 +337,15 @@
         const cp = { kind: "brick", col: c, val: Math.max(1, v), shape: "square", ori: null };
         if (rng() < 0.09) { cp.shape = "tri"; cp.ori = ["tl", "tr", "bl", "br"][Math.floor(rng() * 4)]; }
         row.push(cp);
+      }
+      // A thin row earns a heavyweight, so sparse never just means easy. The
+      // fewer bricks in the row, the nastier the one that anchors it.
+      if (density <= 3 && row.length) {
+        const heavyMul = density <= 2 ? 2.0 + rng() * 1.0 : 1.5 + rng() * 0.7;
+        let hv = Math.round(base * heavyMul);
+        if (l >= 6) hv = Math.max(5, Math.round(hv / 5) * 5);
+        const k = Math.floor(rng() * row.length);
+        row[k].val = Math.max(row[k].val, hv);
       }
       for (const c of specCols) {
         const r = rng();

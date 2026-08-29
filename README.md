@@ -49,8 +49,14 @@ green, gold, and red (hardest). Some are **triangle wedges** that bounce balls o
 at 45° — great for banking shots into awkward corners.
 
 There is always at least one **empty row above the stack**, so you can always break
-through into open space along the top. The stack's top row itself may be completely
-closed off across every column.
+through into open space along the top.
+
+**Rows vary in how packed they are.** Each row draws its brick count from a weight
+table over 2–6 blocks (of 8 columns), leaning thin at low levels and fuller at high
+ones, but a packed row stays a minority even late on — the board should never read
+as a uniform wall. A **thin row earns a heavyweight**: any row of 2–3 bricks gets
+one anchored by a brick worth roughly 1.5–3× the level's normal ceiling, so sparse
+never just means easy.
 
 **Special blocks** are mixed into the grid. There are no buttons to press: hit one
 with a ball and it fires automatically.
