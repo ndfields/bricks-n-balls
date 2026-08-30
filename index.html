@@ -645,6 +645,31 @@
     addShake(4);
   }
 
+  // Positional-only correction: shifts the ball clear of any brick it is still
+  // inside after a bounce. Never touches velocity, so it cannot add energy.
+  function depenetrate(ball) {
+    for (let pass = 0; pass < 2; pass++) {
+      const gc = Math.floor((ball.x - boardX) / cell), gr = Math.floor((ball.y - boardTop) / cell);
+      let moved = false;
+      for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) {
+        const rr2 = gr + dr, cc2 = gc + dc;
+        if (rr2 < 0 || cc2 < 0 || cc2 >= COLS) continue;
+        const b = brickIndex.get(rr2 * COLS + cc2);
+        if (!b || b.dead || b.shape === "tri") continue;
+        const bx = cellX(b.col) + cell * 0.03, by = cellY(b.row) + cell * 0.03 + b.dy;
+        const bw = cell * 0.94, bh = cell * 0.94;
+        const px = clamp(ball.x, bx, bx + bw), py = clamp(ball.y, by, by + bh);
+        const dx = ball.x - px, dy = ball.y - py;
+        if (dx * dx + dy * dy >= ballR * ballR) continue;
+        const ox = ballR - Math.abs(dx), oy = ballR - Math.abs(dy);
+        if (Math.abs(dx) > Math.abs(dy) || (dx !== 0 && ox < oy)) ball.x += (dx >= 0 ? 1 : -1) * (ox + 0.5);
+        else ball.y += (dy >= 0 ? 1 : -1) * (oy + 0.5);
+        moved = true;
+      }
+      if (!moved) break;
+    }
+  }
+
   function buildIndex() {
     brickIndex.clear();
     for (const b of bricks) brickIndex.set(b.row * COLS + b.col, b);
@@ -659,6 +684,10 @@
       if (ball.x - ballR < boardX) { ball.x = boardX + ballR; ball.vx = Math.abs(ball.vx); }
       if (ball.x + ballR > boardX + boardW) { ball.x = boardX + boardW - ballR; ball.vx = -Math.abs(ball.vx); }
       if (ball.y - ballR < boardTop) { ball.y = boardTop + ballR; ball.vy = Math.abs(ball.vy); }
+
+      // Once the balls have been recalled the turn is over: they fly home
+      // without touching anything on the way.
+      if (returning) continue;
 
       // specials
       for (let i = specials.length - 1; i >= 0; i--) {
@@ -690,7 +719,14 @@
         const ok = b.shape === "tri" ? collideTri(ball, b) : collideSquare(ball, b);
         if (ok) { hit = b; break outer; }
       }
-      if (hit) { damageBrick(hit, 1, ball.x, ball.y); if (hit.dead) { brickIndex.delete(hit.row * COLS + hit.col); } }
+      if (hit) {
+        damageBrick(hit, 1, ball.x, ball.y);
+        if (hit.dead) brickIndex.delete(hit.row * COLS + hit.col);
+      }
+      // Bouncing off one brick can shove a wedged ball into another, and after
+      // enough of that it ends up on the wrong side and "breaks through". Push
+      // straight back out of anything still overlapped, without a second bounce.
+      depenetrate(ball);
     }
 
     ball.trail.push({ x: ball.x, y: ball.y });
