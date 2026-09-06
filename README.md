@@ -53,6 +53,8 @@ at 45° — great for banking shots into awkward corners.
 There is always at least one **empty row above the stack**, so you can always break
 through into open space along the top.
 
+**Difficulty evens out at high levels.** Because you always get the same 60 balls, your damage per turn is roughly constant, so brick toughness can't rise forever or the game becomes unwinnable. It climbs normally through about level 14, then bends into a gentle plateau — levels in the 20s–40s stay in a similar band rather than spiking, and row packing stops increasing too. Progression past that point comes from the full row count and denser, heavier boards, not ever-bigger numbers.
+
 **Rows vary in how packed they are.** Each row draws its brick count from a weight
 table over 2–6 blocks (of 8 columns), leaning thin at low levels and fuller at high
 ones, but a packed row stays a minority even late on — the board should never read
