@@ -294,7 +294,16 @@
   // A big one-off stream that grows with the level.
   function bonusTurnBalls(l) { return Math.min(240, 40 + l * 8); }
   // Toughest fresh brick for a level - the main difficulty dial.
-  function levelBase(l) { return 10 + 4 * Math.min(l, 14) + 0.8 * Math.max(0, l - 14); }
+  // Unchanged ramp through level 14, then a TRUE asymptote toward a hard ceiling.
+  // The old form kept a small linear slope, so over ~100 levels it crept back up
+  // into unwinnable numbers. This one can approach CEIL but never pass it, so the
+  // difficulty genuinely plateaus and even level 100+ stays winnable with a fixed
+  // 60-ball stream. (avgRowHP settles around ~330 vs a competent turn's output.)
+  function levelBase(l) {
+    if (l <= 14) return 10 + 4 * l;
+    const CEIL = 80, K = 42;
+    return CEIL - (CEIL - 66) * (K / (K + (l - 14)));
+  }
 
   // -> array of rows, each row a list of cells to drop in at the top.
   function buildLevel(l) {
