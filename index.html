@@ -302,7 +302,12 @@
   function levelBase(l) {
     if (l <= 14) return 10 + 4 * l;
     const CEIL = 80, K = 42;
-    return CEIL - (CEIL - 66) * (K / (K + (l - 14)));
+    // Asymptotic plateau through level 200 (approaches but never reaches CEIL)...
+    const asym = x => CEIL - (CEIL - 66) * (K / (K + (x - 14)));
+    if (l <= 200) return asym(l);
+    // ...then a barely-there linear creep beyond 200 so it keeps inching up
+    // (about +1 brick strength every 20 levels) without ever spiking.
+    return asym(200) + 0.05 * (l - 200);
   }
 
   // -> array of rows, each row a list of cells to drop in at the top.
